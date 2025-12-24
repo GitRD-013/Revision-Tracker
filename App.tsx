@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Topic, RevisionStatus, AppSettings, DEFAULT_SETTINGS } from './types';
-import { fetchUserData, saveUserTopics, saveUserSettings, checkAndMigrateData, saveUserGoogleCredentials, getUserGoogleCredentials } from './services/storageService';
+import { saveUserTopics, saveUserSettings, checkAndMigrateData, saveUserGoogleCredentials, getUserGoogleCredentials, subscribeToUserData } from './services/storageService';
 
 import * as NotificationService from './services/notificationService';
 import { updateTopicRevisions, generateRevisions } from './services/revisionService';
@@ -27,8 +27,8 @@ import Toast, { ToastType } from './components/UI/Toast';
 
 // --- Standard Styles ---
 
-const INPUT_STYLE = "w-full bg-white border border-gray-200 text-text text-sm rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary block p-3.5 transition-all";
-const CONTAINER = "max-w-[1600px] mx-auto px-6 py-8";
+const INPUT_STYLE = "w-full bg-white border border-gray-200 text-text text-sm rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary block p-3 sm:p-3.5 transition-all";
+const CONTAINER = "max-w-[1600px] mx-auto px-4 sm:px-6 py-6 sm:py-8";
 
 
 import SideNavigation from './components/SideNavigation';
@@ -207,7 +207,7 @@ const AddTopicForm = ({ settings, onSave, initialData }: { settings: AppSettings
                 </div>
 
                 {/* Main White Card Container */}
-                <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                <div className="bg-white rounded-3xl shadow-sm p-5 sm:p-8 border border-gray-100">
                     <div className="mb-8">
                         <p className="text-text-light mt-1">Fill in the details below</p>
                     </div>
@@ -266,7 +266,7 @@ const AddTopicForm = ({ settings, onSave, initialData }: { settings: AppSettings
                             <SimpleRichTextEditor value={notes} onChange={setNotes} />
                         </div>
                         <div className="pt-6">
-                            <button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold text-base h-14 rounded-xl shadow-soft transition-all transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0">
+                            <button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold text-base h-12 sm:h-14 rounded-xl shadow-soft transition-all transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0">
                                 {isSubmitting ? 'Saving...' : (initialData ? 'Save Changes' : 'Create Topic')}
                             </button>
                         </div>
@@ -310,9 +310,11 @@ const AppContent = () => {
         setTimeout(() => setToast(null), 3000);
     };
 
-    // Load Data from Firestore when User Changes
+    // Load Data from Firestore when User Changes (Real-Time Sync)
     useEffect(() => {
-        const loadData = async () => {
+        let unsubscribe: (() => void) | undefined;
+
+        const setupSync = async () => {
             if (currentUser) {
                 try {
                     // Check and migrate local data to Firestore (one-time)
@@ -321,26 +323,35 @@ const AppContent = () => {
                         showToast("Local data migrated to cloud", 'success');
                     }
 
-                    const { topics: fetchedTopics, settings: fetchedSettings } = await fetchUserData(currentUser.uid);
-                    setTopics(fetchedTopics);
-                    setSettings(fetchedSettings);
-
-                    // Fetch stored Google Credentials
+                    // Fetch stored Google Credentials (one-time)
                     const creds = await getUserGoogleCredentials(currentUser.uid);
                     if (creds) {
                         setGoogleCredentials(creds);
                         console.log("Loaded Google Credentials from Firestore");
                     }
+
+                    // Subscribe to Real-time Updates
+                    unsubscribe = subscribeToUserData(currentUser.uid, (data) => {
+                        console.log("Real-time update received", data.topics.length);
+                        setTopics(data.topics);
+                        setSettings(data.settings);
+                    });
+
                 } catch (error: any) {
-                    console.error("Failed to fetch user data:", error);
-                    showToast(error.message || "Failed to load data", 'error');
+                    console.error("Failed to setup sync:", error);
+                    showToast(error.message || "Failed to sync data", 'error');
                 }
             } else {
                 setTopics([]);
                 setSettings(DEFAULT_SETTINGS);
             }
         };
-        loadData();
+
+        setupSync();
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [currentUser]);
 
     // Check for notifications when topics or settings change
@@ -543,23 +554,19 @@ const AppContent = () => {
                         // 2. Existing Events (Update Sync)
                         else if (rev.googleEventId) {
                             // If we are editing, we want to update the calendar event too
-                            // We only update if we have token access (implicit in "Connected" check but good to ensure)
                             await CalendarService.ensureToken();
 
-                            // Update the event with new details
-                            // We use the revisions date (which might not have changed, but topic details might have)
-                            // We use the calendarOptions time/color if provided (from Edit Form)
-                            // Note: If calendarOptions is undefined (e.g. quick save?), we might want to preserve existing time? 
-                            // Current UI always passes time/color from AddTopicForm, so it should be fine.
+                            // Use the specific time if provided, or fall back to the setting -> default
+                            const timeToUse = calendarOptions?.time || settings.defaultCalendarTime || '09:00';
+
                             await CalendarService.updateEvent(
                                 rev.googleEventId,
                                 topicToSave.title,
                                 rev.date,
                                 topicToSave.subject,
-                                calendarOptions?.time || '09:00', // Default backup
-                                calendarOptions?.colorId
+                                timeToUse,
+                                calendarOptions?.colorId // Preserve color if not explicitly changing
                             );
-                            // No change to revision structure needed, just side effect
                         }
                     } catch (e) {
                         console.error("Error syncing revision", rev.id, e);
@@ -653,7 +660,53 @@ const AppContent = () => {
 
 
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="loader"></div></div>;
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex">
+                {/* Skeleton Sidebar - Hidden on mobile, visible on md */}
+                <div className="hidden md:flex w-20 lg:w-64 flex-col gap-4 border-r border-gray-200 bg-white p-4">
+                    <div className="h-10 w-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                    <div className="mt-8 space-y-4">
+                        {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Skeleton Main Content */}
+                <div className="flex-1 p-6 space-y-8">
+                    {/* Header Skeleton */}
+                    <div className="flex justify-between items-end">
+                        <div className="space-y-2">
+                            <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+                            <div className="h-4 w-32 bg-gray-100 rounded-lg animate-pulse"></div>
+                        </div>
+                        <div className="h-10 w-32 bg-gray-200 rounded-xl animate-pulse"></div>
+                    </div>
+
+                    {/* Stats Grid Skeleton */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="h-32 bg-white rounded-3xl border border-gray-100 shadow-sm animate-pulse p-6 space-y-4">
+                                <div className="h-4 w-24 bg-gray-100 rounded"></div>
+                                <div className="h-8 w-16 bg-gray-200 rounded"></div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Content Grid Skeleton */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="h-64 bg-white rounded-3xl border border-gray-100 shadow-sm animate-pulse"></div>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="h-48 bg-white rounded-3xl border border-gray-100 shadow-sm animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
 
     return (
@@ -667,7 +720,7 @@ const AppContent = () => {
                     <Route path="*" element={
                         <ProtectedRoute>
                             <div className="flex min-h-screen">
-                                <div className="hidden lg:flex">
+                                <div className="hidden md:flex">
                                     <SideNavigation
                                         isOpen={isSidebarOpen}
                                         onCloseMobile={() => setIsSidebarOpen(false)}
@@ -690,7 +743,7 @@ const AppContent = () => {
                                 />
 
                                 <main
-                                    className={`flex-1 transition-all duration-300 ${isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-20'} pt-6 lg:pt-0 pb-32 lg:pb-0`}
+                                    className={`flex-1 w-full max-w-[100vw] overflow-x-hidden transition-all duration-300 ${isSidebarExpanded ? 'md:ml-64' : 'md:ml-20'} pt-6 md:pt-0 pb-32 md:pb-0`}
                                 >
                                     <Routes>
                                         <Route path="/" element={<Dashboard topics={topics} onStatusUpdate={handleStatusUpdate} onAddTopic={() => setIsTopicModalOpen(true)} />} />
@@ -706,7 +759,7 @@ const AppContent = () => {
                                         } />
                                         <Route path="/add" element={<AddTopicForm settings={settings} onSave={handleSaveTopic} />} />
                                         <Route path="/edit/:id" element={<EditTopicWrapper topics={topics} settings={settings} onSave={handleSaveTopic} />} />
-                                        <Route path="/settings" element={<SettingsPage settings={settings} onSave={handleSaveSettings} showToast={showToast} />} />
+                                        <Route path="/settings" element={<SettingsPage settings={settings} topics={topics} onSave={handleSaveSettings} showToast={showToast} />} />
                                         <Route path="/topic/:id" element={<TopicDetailView topics={topics} onDelete={handleDeleteTopic} />} />
                                         <Route path="/calendar" element={<CalendarPage topics={topics} onStatusUpdate={handleStatusUpdate} />} />
                                         <Route path="/profile" element={<ProfilePage />} />

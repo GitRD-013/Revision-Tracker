@@ -59,7 +59,7 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
     }, [topics, searchTerm, selectedSubject, selectedDifficulty, statusFilter]); // Kept statusFilter in dependencies
 
     return (
-        <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
+        <div className="w-full max-w-[1600px] mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8 overflow-x-hidden">
             <ConfirmModal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, topicId: null })}
@@ -114,7 +114,7 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
                     <svg className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
 
-                <div className="flex gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     <CustomDropdown
                         value={selectedSubject}
                         onChange={setSelectedSubject}
@@ -150,7 +150,7 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
                 </div>
             ) : (
                 viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                         {filteredTopics.map(topic => {
                             const pendingRevs = topic.revisions.filter(r => r.status === RevisionStatus.PENDING);
                             const completedRevs = topic.revisions.filter(r => r.status === RevisionStatus.COMPLETED);
@@ -165,7 +165,7 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
                             const progress = Math.round((completedRevs.length / topic.revisions.length) * 100) || 0;
 
                             return (
-                                <div key={topic.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-medium hover:scale-[1.02] transition-all duration-300 group flex flex-col h-full relative overflow-hidden">
+                                <div key={topic.id} className="bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-gray-100 hover:shadow-medium hover:scale-[1.02] transition-all duration-300 group flex flex-col h-full relative overflow-hidden">
                                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                                     <div className="flex justify-between items-start mb-4">

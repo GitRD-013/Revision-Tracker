@@ -17,14 +17,14 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
     // Combine logic for stats and revisions
     const { dueToday, stats, completionRate } = useMemo(() => {
         const todayRevs: { topicId: string; revId: string; date: string }[] = [];
-        let completed = 0;
-        let total = 0;
+        let completedRevisions = 0;
+        let totalRevisions = 0;
 
         topics.forEach(topic => {
             topic.revisions.forEach(rev => {
-                total++;
+                totalRevisions++;
                 if (rev.status === RevisionStatus.COMPLETED) {
-                    completed++;
+                    completedRevisions++;
                 } else {
                     // Include both today's and missed/overdue revisions
                     if (rev.date <= today) {
@@ -37,11 +37,16 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
         // Sort by date (oldest first for overdue)
         todayRevs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-        const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const rate = totalRevisions > 0 ? Math.round((completedRevisions / totalRevisions) * 100) : 0;
 
         return {
             dueToday: todayRevs,
-            stats: { completed, total, pending: total - completed },
+            stats: {
+                totalTopics: topics.length,
+                totalRevisions,
+                completedRevisions,
+                pendingRevisions: totalRevisions - completedRevisions
+            },
             completionRate: rate
         };
     }, [topics, today]);
@@ -70,9 +75,11 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Link to="/topics" className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-medium hover:scale-[1.02] transition-all duration-300 cursor-pointer">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-8 -mt-8 transition-transform duration-500 group-hover:scale-110"></div>
+                    {/* Revisions Count removed as per user request */}
+
                     <div>
                         <p className="text-gray-500 text-sm font-medium mb-1">Total Topics</p>
-                        <h3 className="text-3xl font-bold text-gray-900">{stats.total}</h3>
+                        <h3 className="text-3xl font-bold text-gray-900">{stats.totalTopics}</h3>
                     </div>
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
@@ -82,8 +89,8 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
                 <Link to="/topics?status=Completed" className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-medium hover:scale-[1.02] transition-all duration-300 cursor-pointer">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-full -mr-8 -mt-8 transition-transform duration-500 group-hover:scale-110"></div>
                     <div>
-                        <p className="text-gray-500 text-sm font-medium mb-1">Completed</p>
-                        <h3 className="text-3xl font-bold text-gray-900">{stats.completed}</h3>
+                        <p className="text-gray-500 text-sm font-medium mb-1">Completed Revisions</p>
+                        <h3 className="text-3xl font-bold text-gray-900">{stats.completedRevisions}</h3>
                     </div>
                     <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors duration-300">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -93,8 +100,8 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
                 <Link to="/topics?status=Pending" className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-medium hover:scale-[1.02] transition-all duration-300 cursor-pointer">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-orange-100 rounded-full -mr-8 -mt-8 transition-transform duration-500 group-hover:scale-110"></div>
                     <div>
-                        <p className="text-gray-500 text-sm font-medium mb-1">Pending</p>
-                        <h3 className="text-3xl font-bold text-gray-900">{stats.pending}</h3>
+                        <p className="text-gray-500 text-sm font-medium mb-1">Pending Revisions</p>
+                        <h3 className="text-3xl font-bold text-gray-900">{stats.pendingRevisions}</h3>
                     </div>
                     <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors duration-300">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -125,7 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
                                 <h3 className="text-xl font-bold text-gray-900">Priority Tasks</h3>
                                 <p className="text-sm text-gray-400 mt-1">Revisions scheduled for today</p>
                             </div>
-                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold">
+                            <span className="bg-primary text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm whitespace-nowrap shrink-0">
                                 {dueToday.length} Due
                             </span>
                         </div>
@@ -152,7 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ topics, onStatusUpdate, onAddTopi
                                             </div>
 
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex flex-wrap items-center gap-2 mb-1">
                                                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{topic.subject}</span>
                                                     {isMissed && <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full">OVERDUE</span>}
                                                 </div>

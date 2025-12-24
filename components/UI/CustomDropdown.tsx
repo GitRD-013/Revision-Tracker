@@ -85,7 +85,7 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ value, onChange, option
                 ref={triggerRef}
                 type="button"
                 onClick={handleToggle}
-                className={`w-full bg-white border ${isOpen ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200'} text-gray-900 text-sm rounded-xl p-3.5 flex items-center justify-between transition-all outline-none`}
+                className={`w-full bg-white border ${isOpen ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200'} text-gray-900 text-xs md:text-sm rounded-xl px-3 py-2.5 md:p-3.5 flex items-center justify-between transition-all outline-none`}
             >
                 <div className="flex items-center gap-2 truncate">
                     {icon && <span className="text-gray-400">{icon}</span>}

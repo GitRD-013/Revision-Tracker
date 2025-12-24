@@ -27,13 +27,13 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-text-light hover:bg-gray-50 hover:text-text'
-                    } ${!isExpanded ? 'lg:justify-center lg:p-0 lg:w-12 lg:h-12 lg:mx-auto lg:gap-0' : ''}`}
+                    } ${!isExpanded ? 'md:justify-center md:p-0 md:w-12 md:h-12 md:mx-auto md:gap-0' : ''}`}
                 title={!isExpanded ? label : undefined}
             >
                 <div className={`shrink-0 transition-colors duration-200 ${isActive ? 'text-primary' : 'text-current'}`}>
                     {icon}
                 </div>
-                <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'lg:opacity-0 lg:max-w-0 opacity-100 max-w-[200px]'}`}>
+                <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'md:opacity-0 md:max-w-0 opacity-100 max-w-[200px]'}`}>
                     {label}
                 </span>
             </Link>
@@ -44,8 +44,8 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
         fixed top-0 bottom-0 left-0 z-50 flex flex-col
         bg-white shadow-medium border-r border-gray-100
         transition-all duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${isExpanded ? 'w-64' : 'w-64 lg:w-20'} overflow-x-hidden
+        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${isExpanded ? 'w-64' : 'w-64 md:w-20'} overflow-x-hidden
     `;
 
     return (
@@ -66,7 +66,7 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
                 {/* Logo */}
                 <div
                     className={`flex items-center min-h-[89px] py-6 border-b border-gray-100 transition-all duration-300
-                    justify-start px-6 ${!isExpanded ? 'lg:justify-center lg:px-4' : ''} cursor-pointer`}
+                    justify-start px-6 ${!isExpanded ? 'md:justify-center md:px-4' : ''} cursor-pointer`}
                     onClick={() => {
                         // Tablet Touch Logic: Toggle on tap if device doesn't support hover
                         if (window.matchMedia('(hover: none)').matches) {
@@ -74,11 +74,11 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
                         }
                     }}
                 >
-                    <div className={`flex items-center ${isExpanded ? 'gap-3' : 'gap-3 lg:gap-0'}`}>
+                    <div className={`flex items-center ${isExpanded ? 'gap-3' : 'gap-3 md:gap-0'}`}>
                         <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center text-white shrink-0">
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" /></svg>
                         </div>
-                        <span className={`font-bold text-lg text-text transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'lg:opacity-0 lg:max-w-0 opacity-100 max-w-[200px]'}`}>
+                        <span className={`font-bold text-lg text-text transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'md:opacity-0 md:max-w-0 opacity-100 max-w-[200px]'}`}>
                             DiggiClass
                         </span>
                     </div>

@@ -148,21 +148,23 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics, onStatusUpdate }) =
                                     key={day}
                                     onClick={() => handleDateClick(day)}
                                     className={`
-                                        aspect-square rounded-full md:rounded-2xl flex flex-col items-center justify-center relative transition-all duration-200 p-1
-                                        ${isSelected ? 'bg-primary text-white shadow-md scale-105' : 'bg-indigo-50/30 text-gray-700 hover:bg-indigo-50 hover:scale-[1.05] hover:shadow-sm'}
-                                        ${isToday && !isSelected ? 'ring-2 ring-primary ring-inset' : ''}
+                                        aspect-square rounded-xl md:rounded-2xl flex flex-col items-center justify-center relative transition-all duration-200 p-1
+                                        ${isSelected
+                                            ? 'bg-primary text-white shadow-md scale-105'
+                                            : (isToday ? 'bg-primary/10 text-primary font-bold' : 'bg-indigo-50/30 text-gray-700 hover:bg-indigo-50 hover:scale-[1.05] hover:shadow-sm')
+                                        }
                                     `}
                                 >
-                                    <span className={`text-sm md:text-base font-semibold ${isSelected ? 'text-white' : 'text-gray-900'} leading-none mb-0.5`}>{day}</span>
+                                    <span className={`text-xs md:text-base font-semibold ${isSelected ? 'text-white' : 'text-gray-900'} leading-none mb-0.5`}>{day}</span>
 
                                     {/* Event Dots */}
                                     {hasEvents && (
                                         <div className="flex flex-col items-center gap-0.5 w-full">
-                                            <div className="flex gap-0.5 md:gap-1 justify-center flex-wrap max-w-full px-1">
+                                            <div className="flex gap-[1px] md:gap-1 justify-center flex-nowrap max-w-full px-0.5">
                                                 {dayEvents.slice(0, 3).map((ev, i) => (
                                                     <div
                                                         key={i}
-                                                        className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full shrink-0 ${isSelected ? 'bg-white/70' : getDotColor(ev)}`}
+                                                        className={`w-[3px] h-[3px] md:w-1.5 md:h-1.5 rounded-full shrink-0 ${isSelected ? 'bg-white/70' : getDotColor(ev)}`}
                                                     ></div>
                                                 ))}
                                             </div>

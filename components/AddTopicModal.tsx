@@ -6,7 +6,7 @@ import CustomTimePicker from './UI/CustomTimePicker';
 import { GOOGLE_CALENDAR_COLORS } from '../services/calendarService';
 import { generateRevisions } from '../services/revisionService';
 
-const INPUT_STYLE = "w-full bg-white border border-gray-200 text-gray-900 text-sm rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary block p-3.5 transition-all outline-none";
+const INPUT_STYLE = "w-full bg-white border border-gray-200 text-gray-900 text-sm rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary block p-2.5 sm:p-3.5 transition-all outline-none";
 
 // --- Simple Rich Text Editor Component ---
 interface RichTextEditorProps {
@@ -165,14 +165,14 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-gray-900/30 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
 
             <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-xl max-h-[90vh] flex flex-col animate-scale-in duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{initialData ? 'Edit Topic' : 'Add New Topic'}</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{initialData ? 'Edit Topic' : 'Add New Topic'}</h2>
                         <p className="text-gray-500 text-sm mt-0.5">Fill in the details below</p>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all active:scale-95">
@@ -181,7 +181,7 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
                     <form id="topic-form" onSubmit={handleSubmit} className="space-y-6">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Topic Title</label>
@@ -245,11 +245,11 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end gap-3">
+                <div className="p-4 sm:p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end gap-3">
                     <button type="button" onClick={onClose} className="px-6 h-12 flex items-center text-gray-700 font-semibold hover:bg-gray-200/50 rounded-xl transition-all active:scale-95">
                         Cancel
                     </button>
-                    <button type="submit" form="topic-form" className="px-8 h-12 flex items-center bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:scale-95">
+                    <button type="submit" form="topic-form" className="px-8 h-12 flex items-center bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:scale-95 whitespace-nowrap">
                         {initialData ? 'Save Changes' : 'Create Topic'}
                     </button>
                 </div>

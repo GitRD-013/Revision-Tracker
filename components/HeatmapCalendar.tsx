@@ -1,6 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Topic, RevisionStatus } from '../types';
+
+// Helper component to handle auto-scrolling
+// Defined before usage to avoid ReferenceError
+const ScrollableContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        // Scroll to end (right) on mount
+        if (scrollRef.current) {
+            // Use timeout to ensure layout is calculated
+            setTimeout(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+                }
+            }, 0);
+        }
+    }, []);
+
+    return (
+        <div ref={scrollRef} className="overflow-x-auto pb-2 custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            {children}
+        </div>
+    );
+};
 
 interface HeatmapCalendarProps {
     topics: Topic[];
@@ -46,7 +70,7 @@ const HeatmapCalendar: React.FC<HeatmapCalendarProps> = ({ topics }) => {
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Learning Activity</h3>
-            <div className="overflow-x-auto pb-2">
+            <ScrollableContainer>
                 <div className="flex gap-1 min-w-max">
                     {/* We'll render columns for weeks. 365 days is roughly 52 weeks */}
                     {Array.from({ length: 53 }).map((_, weekIndex) => (
@@ -73,7 +97,7 @@ const HeatmapCalendar: React.FC<HeatmapCalendarProps> = ({ topics }) => {
                         </div>
                     ))}
                 </div>
-            </div>
+            </ScrollableContainer>
 
             <div className="flex items-center justify-end gap-2 mt-2 text-xs text-gray-400">
                 <span>Less</span>

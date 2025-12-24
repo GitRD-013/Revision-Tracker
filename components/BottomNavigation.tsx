@@ -49,7 +49,7 @@ const BottomNavigation = () => {
 
     return (
         <>
-            <div className="fixed bottom-0 left-0 right-0 h-[72px] bg-white rounded-t-[20px] shadow-[0_-4px_24px_rgba(0,0,0,0.08)] border-t border-gray-100 flex items-center justify-around px-2 z-50 lg:hidden backdrop-blur-md bg-white/90 supports-[backdrop-filter]:bg-white/60">
+            <div className="fixed bottom-0 left-0 right-0 h-[72px] bg-white rounded-t-[20px] shadow-[0_-4px_24px_rgba(0,0,0,0.08)] border-t border-gray-100 flex items-center justify-around px-2 z-50 md:hidden backdrop-blur-md bg-white/90 supports-[backdrop-filter]:bg-white/60">
                 <NavItem
                     to="/"
                     label="Dashboard"

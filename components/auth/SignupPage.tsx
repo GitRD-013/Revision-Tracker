@@ -34,14 +34,14 @@ const SignupPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-background flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
                     <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-white">
                         <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" /></svg>
                     </div>
                 </div>
-                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                <h2 className="mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-900">
                     Create your account
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
@@ -53,7 +53,7 @@ const SignupPage: React.FC = () => {
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-100">
+                <div className="bg-white py-6 px-5 shadow-xl rounded-2xl sm:py-8 sm:px-10 border border-gray-100">
                     {error && (
                         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
                             <div className="flex">
@@ -82,7 +82,7 @@ const SignupPage: React.FC = () => {
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
+                                    className="appearance-none block w-full px-3 py-2.5 sm:py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
                                 />
                             </div>
                         </div>
@@ -100,7 +100,7 @@ const SignupPage: React.FC = () => {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
+                                    className="appearance-none block w-full px-3 py-2.5 sm:py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
                                 />
                             </div>
                         </div>
@@ -118,7 +118,7 @@ const SignupPage: React.FC = () => {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all pr-10"
+                                    className="appearance-none block w-full px-3 py-2.5 sm:py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all pr-10"
                                 />
                                 <button
                                     type="button"
@@ -143,7 +143,7 @@ const SignupPage: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                className="w-full flex justify-center py-2.5 sm:py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                                 {loading ? 'Creating account...' : 'Sign up'}
                             </button>

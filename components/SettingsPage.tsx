@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppSettings } from '../types';
+import { Topic, AppSettings } from '../types';
 import * as CalendarService from '../services/calendarService';
 import { getAllData, importAppData, saveUserGoogleCredentials } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface SettingsPageProps {
     settings: AppSettings;
+    topics: Topic[]; // Add topics prop
     onSave: (s: AppSettings) => void;
     showToast: (msg: string, type: ToastType) => void;
 }
@@ -51,7 +52,7 @@ const IntervalsInput: React.FC<{ value: number[], onChange: (val: number[]) => v
     );
 };
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTopics, onSave, showToast }) => {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [localSettings, setLocalSettings] = useState(settings);
@@ -79,7 +80,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast
     // Let me target imports first, then the header.
 
     const removeSubject = (s: string) => {
-        setLocalSettings(prev => ({ ...prev, subjects: prev.subjects.filter(sub => sub !== s) }));
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Subject?",
+            message: `Are you sure you want to delete "${s}"? This will not delete topics associated with it.`,
+            onConfirm: () => {
+                setLocalSettings(prev => ({ ...prev, subjects: prev.subjects.filter(sub => sub !== s) }));
+                showToast("Subject removed", 'success');
+            }
+        });
     };
 
 
@@ -154,7 +163,35 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast
 
                 // 3. Smart Sync with Google Calendar
                 const shouldSync = isGoogleConnected || (data.settings?.googleCalendarConnected);
-                let updatedTopics = data.topics ? [...data.topics] : [];
+
+                // --- SAFE MERGE LOGIC ---
+                // We merge imported topics with current (Firestore) topics to prevent data loss.
+                // Strategy: 
+                // 1. Create a Map of existing topics by ID.
+                // 2. Add/Overwrite with imported topics (imported takes precedence for same ID).
+                // 3. Result is the union of both.
+
+                let importedTopics = data.topics ? [...data.topics] : [];
+
+                // If we have current topics (from Firestore), we merge.
+                // If currentTopics is empty (e.g. fresh login), we just use imported.
+                let mergedTopics: Topic[] = [...importedTopics];
+
+                if (currentTopics && currentTopics.length > 0) {
+                    const topicMap = new Map<string, Topic>();
+
+                    // Add existing topics first
+                    currentTopics.forEach(t => topicMap.set(t.id, t));
+
+                    // Merge imported topics (overwriting if ID matches)
+                    importedTopics.forEach((t: Topic) => topicMap.set(t.id, t));
+
+                    mergedTopics = Array.from(topicMap.values());
+
+                    console.log(`Merged ${importedTopics.length} imported topics with ${currentTopics.length} existing topics. Result: ${mergedTopics.length}`);
+                }
+
+                let updatedTopics = mergedTopics;
                 let syncedCount = 0;
 
                 if (shouldSync && updatedTopics.length > 0) {
@@ -168,19 +205,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast
 
                         const existingEvents = await CalendarService.listEvents(new Date(minDate).toISOString(), 1000);
 
-                        const eventExists = (title: string, date: string) => {
-                            return existingEvents.find((ev: any) => {
-                                const evDate = ev.start.dateTime || ev.start.date;
-                                return ev.summary === title && evDate.startsWith(date);
-                            });
-                        };
+                        // Removed unused eventExists helper to fix lint warning
+
 
                         for (const topic of updatedTopics) {
 
                             for (const rev of topic.revisions) {
                                 if (rev.status !== 'CANCELLED') {
-                                    const title = `Revise: ${topic.title}`;
-                                    const existingEvent = eventExists(title, rev.date);
+                                    const summaryBase = `Revise: ${topic.title}`;
+                                    // Robust check: Matches exact title OR title with subject suffix e.g. "Revise: Math [Algebra]"
+                                    const existingEvent = existingEvents.find((ev: any) => {
+                                        const evDate = ev.start.dateTime || ev.start.date;
+                                        if (!evDate.startsWith(rev.date)) return false;
+                                        return ev.summary === summaryBase || ev.summary.startsWith(`${summaryBase} [`);
+                                    });
 
                                     if (!existingEvent) {
                                         // Not on calendar -> Create it
@@ -270,18 +308,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast
                 // Use a large maxResults to be safe
                 const existingEvents = await CalendarService.listEvents(new Date(minDate).toISOString(), 2000);
 
-                const eventExists = (title: string, date: string) => {
-                    return existingEvents.find((ev: any) => {
-                        const evDate = ev.start.dateTime || ev.start.date;
-                        return ev.summary === title && evDate.startsWith(date);
-                    });
-                };
+                // Removed unused eventExists helper to fix lint warning
+
 
                 for (const topic of updatedTopics) {
                     for (const rev of topic.revisions) {
                         if (rev.status !== 'CANCELLED') {
-                            const title = `Revise: ${topic.title}`;
-                            const existingEvent = eventExists(title, rev.date);
+                            const summaryBase = `Revise: ${topic.title}`;
+                            // Robust check: Matches exact title OR title with subject suffix
+                            const existingEvent = existingEvents.find((ev: any) => {
+                                const evDate = ev.start.dateTime || ev.start.date;
+                                if (!evDate.startsWith(rev.date)) return false;
+                                return ev.summary === summaryBase || ev.summary.startsWith(`${summaryBase} [`);
+                            });
 
                             if (!existingEvent) {
                                 // Create missing event
@@ -404,9 +443,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, showToast
                 {isDirty && (
                     <button
                         onClick={handleManualSave}
-                        className="bg-primary hover:bg-primary-dark text-white font-bold py-2.5 px-6 rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-right-4"
+                        className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 text-sm sm:py-2.5 sm:px-6 sm:text-base rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 animate-in fade-in slide-in-from-right-4"
                     >
-                        Save Changes
+                        <span className="sm:hidden">Save</span>
+                        <span className="hidden sm:inline">Save Changes</span>
                     </button>
                 )}
             </div>
