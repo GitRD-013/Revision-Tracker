@@ -46,12 +46,6 @@ const ProfilePage: React.FC = () => {
                         </button>
                         <h2 className="text-3xl font-bold text-gray-900">My Profile</h2>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-medium text-sm"
-                    >
-                        Log Out
-                    </button>
                 </div>
 
                 {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6">{error}</div>}
@@ -71,7 +65,7 @@ const ProfilePage: React.FC = () => {
                     <div className="pt-6 border-t border-gray-100">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Security</h3>
 
-                        <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-xl">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-indigo-50/50 rounded-xl gap-4">
                             <div>
                                 <div className="font-medium text-gray-900">Password</div>
                                 <div className="text-sm text-gray-500">Change your password via email</div>
@@ -79,9 +73,26 @@ const ProfilePage: React.FC = () => {
                             <button
                                 onClick={handleResetPassword}
                                 disabled={loading}
-                                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-indigo-50 transition-colors shadow-sm disabled:opacity-50"
+                                className="w-full sm:w-auto px-4 py-2 bg-white border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-indigo-50 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap text-sm"
                             >
                                 Reset Password
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Account</h3>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-red-50/50 rounded-xl gap-4">
+                            <div>
+                                <div className="font-medium text-gray-900">Sign Out</div>
+                                <div className="text-sm text-gray-500">Sign out of your account</div>
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="w-full sm:w-auto px-4 py-2 bg-white border border-red-200 text-red-600 font-medium rounded-lg hover:bg-red-50 transition-colors shadow-sm whitespace-nowrap text-sm"
+                            >
+                                Log Out
                             </button>
                         </div>
                     </div>

@@ -10,9 +10,11 @@ interface TopicListProps {
     onDelete: (id: string) => void;
     onDuplicate: (t: Topic) => void;
     onAddTopic: () => void;
+    viewMode: 'grid' | 'table';
+    onViewModeChange: (mode: 'grid' | 'table') => void;
 }
 
-const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, onAddTopic }) => {
+const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, onAddTopic, viewMode, onViewModeChange }) => {
     const [searchParams] = useSearchParams();
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,8 +25,6 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
     const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Completed'>(
         (searchParams.get('status') as 'All' | 'Pending' | 'Completed') || 'All'
     );
-
-    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, topicId: string | null }>({ isOpen: false, topicId: null });
 
@@ -79,14 +79,14 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
                 <div className="flex items-center gap-3">
                     <div className="bg-white p-1 rounded-xl border border-gray-200 flex items-center shadow-sm">
                         <button
-                            onClick={() => setViewMode('grid')}
+                            onClick={() => onViewModeChange('grid')}
                             className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary/10 text-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                             title="Grid View"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                         </button>
                         <button
-                            onClick={() => setViewMode('table')}
+                            onClick={() => onViewModeChange('table')}
                             className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-primary/10 text-primary shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                             title="Table View"
                         >
@@ -225,85 +225,113 @@ const TopicList: React.FC<TopicListProps> = ({ topics, onDelete, onDuplicate, on
                     </div>
                 ) : (
                     /* Table View */
-                    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                    /* Table View with Split Header/Body for Scrollbar separation */
+                    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-indigo-50/50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                        <th className="px-6 py-4">Topic</th>
-                                        <th className="px-6 py-4">Subject</th>
-                                        <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4">Progress</th>
-                                        <th className="px-6 py-4">Next Due</th>
-                                        <th className="px-6 py-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {filteredTopics.map(topic => {
-                                        const pendingRevs = topic.revisions.filter(r => r.status === RevisionStatus.PENDING);
-                                        const completedRevs = topic.revisions.filter(r => r.status === RevisionStatus.COMPLETED);
-                                        const nextDue = pendingRevs.length > 0
-                                            ? new Date(Math.min(...pendingRevs.map(r => new Date(r.date).getTime())))
-                                            : null;
-                                        const progress = Math.round((completedRevs.length / topic.revisions.length) * 100) || 0;
-
-                                        return (
-                                            <tr key={topic.id} className="hover:bg-gray-50 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <Link to={`/topic/${topic.id}`} className="font-semibold text-gray-900 group-hover:text-primary transition-colors block max-w-xs truncate">
-                                                        {topic.title}
-                                                    </Link>
-                                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold border ${topic.difficulty === 'Easy' ? 'bg-green-50 text-green-600 border-green-100' :
-                                                        topic.difficulty === 'Medium' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
-                                                            'bg-red-50 text-red-600 border-red-100'
-                                                        }`}>
-                                                        {topic.difficulty}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
-                                                        {topic.subject}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {completedRevs.length === topic.revisions.length ? (
-                                                        <span className="flex items-center gap-1.5 text-green-600 text-xs font-bold">
-                                                            <div className="w-2 h-2 rounded-full bg-green-500"></div> Completed
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-1.5 text-orange-500 text-xs font-bold">
-                                                            <div className="w-2 h-2 rounded-full bg-orange-500"></div> Pending
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-24 bg-gray-100 rounded-full h-1.5">
-                                                            <div className="bg-primary h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-gray-500">{progress}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm">
-                                                    <span className={`font-medium ${nextDue && nextDue < new Date() ? 'text-red-500' : 'text-gray-900'}`}>
-                                                        {nextDue ? nextDue.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Done'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex justify-end">
-                                                        <TopicActionMenu
-                                                            topicId={topic.id}
-                                                            onEdit={() => {/* handled by Link wrapper */ }}
-                                                            onDelete={() => setDeleteModal({ isOpen: true, topicId: topic.id })}
-                                                            onDuplicate={() => onDuplicate(topic)}
-                                                        />
-                                                    </div>
-                                                </td>
+                            <div className="min-w-[800px]">
+                                {/* Header Table (Static) */}
+                                <div className="bg-white">
+                                    <table className="w-full text-left border-collapse table-fixed">
+                                        <colgroup>
+                                            <col className="w-[36%]" /> {/* Topic - Reduced slightly */}
+                                            <col className="w-[12%]" /> {/* Subject */}
+                                            <col className="w-[12%]" /> {/* Status */}
+                                            <col className="w-[15%]" /> {/* Progress */}
+                                            <col className="w-[15%]" /> {/* Next Due */}
+                                            <col className="w-[10%]" /> {/* Actions - Increased for visibility */}
+                                        </colgroup>
+                                        <thead className="bg-white">
+                                            <tr className="bg-indigo-50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                                <th className="px-6 py-4 truncate">Topic</th>
+                                                <th className="px-6 py-4 truncate">Subject</th>
+                                                <th className="px-6 py-4 truncate">Status</th>
+                                                <th className="px-6 py-4 truncate">Progress</th>
+                                                <th className="px-6 py-4 truncate">Next Due</th>
+                                                <th className="px-2 py-4 text-center truncate">Actions</th>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                        </thead>
+                                    </table>
+                                </div>
+
+                                {/* Body Table (Scrollable Y) */}
+                                <div className="overflow-y-auto max-h-[calc(100vh-280px)] lg:max-h-none lg:overflow-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                                    <table className="w-full text-left border-collapse table-fixed">
+                                        <colgroup>
+                                            <col className="w-[36%]" /> {/* Topic */}
+                                            <col className="w-[12%]" /> {/* Subject */}
+                                            <col className="w-[12%]" /> {/* Status */}
+                                            <col className="w-[15%]" /> {/* Progress */}
+                                            <col className="w-[15%]" /> {/* Next Due */}
+                                            <col className="w-[10%]" /> {/* Actions */}
+                                        </colgroup>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {filteredTopics.map(topic => {
+                                                const pendingRevs = topic.revisions.filter(r => r.status === RevisionStatus.PENDING);
+                                                const completedRevs = topic.revisions.filter(r => r.status === RevisionStatus.COMPLETED);
+                                                const nextDue = pendingRevs.length > 0
+                                                    ? new Date(Math.min(...pendingRevs.map(r => new Date(r.date).getTime())))
+                                                    : null;
+                                                const progress = Math.round((completedRevs.length / topic.revisions.length) * 100) || 0;
+
+                                                return (
+                                                    <tr key={topic.id} className="hover:bg-gray-50 transition-colors group">
+                                                        <td className="px-6 py-4 truncate">
+                                                            <Link to={`/topic/${topic.id}`} className="font-semibold text-gray-900 group-hover:text-primary transition-colors block max-w-xs truncate">
+                                                                {topic.title}
+                                                            </Link>
+                                                            <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold border ${topic.difficulty === 'Easy' ? 'bg-green-50 text-green-600 border-green-100' :
+                                                                topic.difficulty === 'Medium' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
+                                                                    'bg-red-50 text-red-600 border-red-100'
+                                                                }`}>
+                                                                {topic.difficulty}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 truncate">
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                                                                {topic.subject}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 truncate">
+                                                            {completedRevs.length === topic.revisions.length ? (
+                                                                <span className="flex items-center gap-1.5 text-green-600 text-xs font-bold">
+                                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div> Completed
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1.5 text-orange-500 text-xs font-bold">
+                                                                    <div className="w-2 h-2 rounded-full bg-orange-500"></div> Pending
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 truncate">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-24 bg-gray-100 rounded-full h-1.5 shrink-0">
+                                                                    <div className="bg-primary h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                                                </div>
+                                                                <span className="text-xs font-bold text-gray-500">{progress}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-sm truncate">
+                                                            <span className={`font-medium ${nextDue && nextDue < new Date() ? 'text-red-500' : 'text-gray-900'}`}>
+                                                                {nextDue ? nextDue.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Done'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center truncate">
+                                                            <div className="flex justify-center">
+                                                                <TopicActionMenu
+                                                                    topicId={topic.id}
+                                                                    onEdit={() => {/* handled by Link wrapper */ }}
+                                                                    onDelete={() => setDeleteModal({ isOpen: true, topicId: topic.id })}
+                                                                    onDuplicate={() => onDuplicate(topic)}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )

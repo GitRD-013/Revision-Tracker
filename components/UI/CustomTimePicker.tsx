@@ -110,7 +110,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({ value, onChange, la
                 ref={triggerRef}
                 type="button"
                 onClick={handleToggle}
-                className={`w-full bg-white border ${isOpen ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200'} text-gray-900 text-sm rounded-2xl p-3.5 flex items-center justify-between transition-all outline-none`}
+                className={`w-full bg-white border ${isOpen ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200'} text-gray-900 text-sm rounded-xl px-3.5 py-2.5 flex items-center justify-between transition-all outline-none`}
             >
                 <div className="flex items-center gap-2">
                     <span className="font-medium text-lg text-gray-700">

@@ -13,7 +13,7 @@ const TopicActionMenu: React.FC<TopicActionMenuProps> = ({ topicId, onDelete, on
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+    const [dropdownPos, setDropdownPos] = useState<{ top?: number | undefined, bottom?: number | undefined, left: number }>({ top: 0, left: 0 });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -52,10 +52,27 @@ const TopicActionMenu: React.FC<TopicActionMenuProps> = ({ topicId, onDelete, on
             const rect = buttonRef.current.getBoundingClientRect();
             // Align right edge of menu with right edge of button
             // Menu width is 9rem (w-36) = 144px
-            setDropdownPos({
-                top: rect.bottom + 4,
-                left: rect.right - 144
-            });
+            const left = rect.right - 144;
+
+            // Check vertical space
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const minSpaceRequired = 220; // Approx menu height + padding
+
+            if (spaceBelow < minSpaceRequired) {
+                // Open upwards
+                setDropdownPos({
+                    bottom: window.innerHeight - rect.top + 4,
+                    left: left,
+                    top: undefined
+                });
+            } else {
+                // Open downwards (default)
+                setDropdownPos({
+                    top: rect.bottom + 4,
+                    left: left,
+                    bottom: undefined
+                });
+            }
             setIsOpen(true);
         } else {
             setIsOpen(false);
@@ -78,7 +95,11 @@ const TopicActionMenu: React.FC<TopicActionMenuProps> = ({ topicId, onDelete, on
                 <div
                     ref={dropdownRef}
                     className="fixed w-36 bg-white rounded-xl shadow-lg border border-gray-100 z-[9999] py-1 transition-all"
-                    style={{ top: dropdownPos.top, left: dropdownPos.left }}
+                    style={{
+                        left: dropdownPos.left,
+                        top: dropdownPos.top ?? 'auto',
+                        bottom: dropdownPos.bottom ?? 'auto'
+                    }}
                 >
                     <Link
                         to={`/edit/${topicId}`}

@@ -15,11 +15,11 @@ const getAI = () => {
   return aiInstance;
 };
 
-export const generateTopicContent = async (title: string, subject: string): Promise<null> => {
+export const generateTopicContent = async (_title: string, _subject: string): Promise<null> => {
   return null;
 };
 
-export const optimizeSchedule = async (title: string, difficulty: string, performance: string): Promise<number[] | null> => {
+export const optimizeSchedule = async (_title: string, _difficulty: string, _performance: string): Promise<number[] | null> => {
   return null;
 };
 

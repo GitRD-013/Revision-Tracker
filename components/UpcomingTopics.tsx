@@ -70,7 +70,7 @@ const UpcomingTopics: React.FC<UpcomingTopicsProps> = ({ topics }) => {
 
             {upcoming.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-                    <Link to="/topics" className="text-sm font-bold text-primary hover:text-primary-dark transition-colors">
+                    <Link to="/calendar" className="text-sm font-bold text-primary hover:text-primary-dark transition-colors">
                         View Calendar
                     </Link>
                 </div>

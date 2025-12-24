@@ -1,9 +1,10 @@
-import { Type } from "@google/genai";
+
 
 export enum RevisionStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   MISSED = 'MISSED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface Revision {
@@ -57,7 +58,9 @@ export interface AppSettings {
   defaultIntervals: number[];
   autoReschedule: boolean;
   googleCalendarConnected: boolean;
+  defaultCalendarTime?: string; // Last used time for new topics
   notifications: NotificationSettings;
+  topicViewMode: 'grid' | 'table';
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -65,9 +68,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultIntervals: [1, 7, 14, 30, 60], // Standard spacing
   autoReschedule: true,
   googleCalendarConnected: false,
+  defaultCalendarTime: '09:00',
   notifications: {
     enabled: false,
     reminderTime: '09:00',
     missedStrategy: 'shift'
-  }
+  },
+  topicViewMode: 'grid'
 };

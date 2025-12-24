@@ -1,4 +1,4 @@
-import { Topic, AppSettings, DEFAULT_SETTINGS, AIInsight } from '../types';
+import { Topic, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 
@@ -217,3 +217,37 @@ export const getTopics = getLocalTopics;
 export const saveTopics = saveLocalTopics;
 export const getSettings = getLocalSettings;
 export const saveSettings = saveLocalSettings;
+
+// --- persistent Google Auth ---
+
+export const saveUserGoogleCredentials = async (
+  userId: string,
+  credentials: { refresh_token?: string; access_token?: string; expiry_date?: number }
+) => {
+  try {
+    const docRef = doc(db, "users", userId);
+    // Merge to avoid overwriting topics/settings
+    // We store this in a 'googleAuth' map field
+    await setDoc(docRef, { googleAuth: credentials }, { merge: true });
+    console.log("Saved Google credentials to Firestore");
+  } catch (error) {
+    console.error("Error saving Google credentials:", error);
+    throw error;
+  }
+};
+
+export const getUserGoogleCredentials = async (userId: string) => {
+  try {
+    const docRef = doc(db, "users", userId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return data.googleAuth || null;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching Google credentials:", error);
+    return null;
+  }
+};

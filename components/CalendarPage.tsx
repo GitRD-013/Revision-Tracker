@@ -4,9 +4,10 @@ import { Link } from 'react-router-dom';
 
 interface CalendarPageProps {
     topics: Topic[];
+    onStatusUpdate: (topicId: string, revId: string, status: RevisionStatus) => void;
 }
 
-const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
+const CalendarPage: React.FC<CalendarPageProps> = ({ topics, onStatusUpdate }) => {
     const today = new Date();
     const [currentDate, setCurrentDate] = useState(today); // For month navigation
     const [selectedDate, setSelectedDate] = useState<Date>(today); // For selection
@@ -24,14 +25,14 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
 
     // Prepare events data
     const eventsMap = useMemo(() => {
-        const map: Record<string, { type: 'revision' | 'added', topic: Topic, status?: RevisionStatus }[]> = {};
+        const map: Record<string, { type: 'revision' | 'added', topic: Topic, status?: RevisionStatus, revId?: string }[]> = {};
 
         topics.forEach(topic => {
             // Revisions
             topic.revisions.forEach(rev => {
                 const dateKey = rev.date;
                 if (!map[dateKey]) map[dateKey] = [];
-                map[dateKey].push({ type: 'revision', topic, status: rev.status });
+                map[dateKey].push({ type: 'revision', topic, status: rev.status, revId: rev.id });
             });
 
             // Added Date
@@ -84,6 +85,14 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
         "July", "August", "September", "October", "November", "December"
     ];
 
+    // Helper for dot color
+    const getDotColor = (event: { type: 'revision' | 'added', status?: RevisionStatus }) => {
+        if (event.type === 'added') return 'bg-blue-500';
+        if (event.status === RevisionStatus.COMPLETED) return 'bg-green-500';
+        // Pending or Missed
+        return 'bg-red-500';
+    };
+
     return (
         <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
             <div className="flex items-center justify-between">
@@ -123,7 +132,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
                             </div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7 gap-2 md:gap-4">
+                    <div className="grid grid-cols-7 gap-1 md:gap-4">
                         {daysArray.map((day, index) => {
                             if (day === null) return <div key={`empty-${index}`} />;
 
@@ -131,30 +140,37 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
                             const dateKey = formatDateKey(currentDayDate);
                             const isSelected = dateKey === formatDateKey(selectedDate);
                             const isToday = dateKey === formatDateKey(today);
-                            const hasEvents = !!eventsMap[dateKey];
-                            const eventCount = eventsMap[dateKey]?.length || 0;
+                            const dayEvents = eventsMap[dateKey] || [];
+                            const hasEvents = dayEvents.length > 0;
 
                             return (
                                 <button
                                     key={day}
                                     onClick={() => handleDateClick(day)}
                                     className={`
-                                        aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all duration-200
+                                        aspect-square rounded-full md:rounded-2xl flex flex-col items-center justify-center relative transition-all duration-200 p-1
                                         ${isSelected ? 'bg-primary text-white shadow-md scale-105' : 'bg-indigo-50/30 text-gray-700 hover:bg-indigo-50 hover:scale-[1.05] hover:shadow-sm'}
                                         ${isToday && !isSelected ? 'ring-2 ring-primary ring-inset' : ''}
                                     `}
                                 >
-                                    <span className={`text-sm md:text-base font-semibold ${isSelected ? 'text-white' : 'text-gray-900'}`}>{day}</span>
+                                    <span className={`text-sm md:text-base font-semibold ${isSelected ? 'text-white' : 'text-gray-900'} leading-none mb-0.5`}>{day}</span>
 
                                     {/* Event Dots */}
                                     {hasEvents && (
-                                        <div className="flex gap-1 mt-1">
-                                            {Array.from({ length: Math.min(eventCount, 3) }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/50' : 'bg-pink-400'}`}
-                                                ></div>
-                                            ))}
+                                        <div className="flex flex-col items-center gap-0.5 w-full">
+                                            <div className="flex gap-0.5 md:gap-1 justify-center flex-wrap max-w-full px-1">
+                                                {dayEvents.slice(0, 3).map((ev, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full shrink-0 ${isSelected ? 'bg-white/70' : getDotColor(ev)}`}
+                                                    ></div>
+                                                ))}
+                                            </div>
+                                            {dayEvents.length > 3 && (
+                                                <div className={`text-[8px] md:text-[9px] font-bold leading-none ${isSelected ? 'text-white/90' : 'text-gray-400'}`}>
+                                                    +{dayEvents.length - 3}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </button>
@@ -186,30 +202,68 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ topics }) => {
                             </div>
                         ) : (
                             <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar min-h-0">
-                                {selectedEvents.map((event, idx) => (
-                                    <Link
-                                        to={`/topic/${event.topic.id}`}
-                                        key={`${event.topic.id}-${idx}`}
-                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
-                                    >
-                                        <div className={`w-2 h-2 rounded-full shrink-0 ${event.type === 'revision'
-                                            ? (event.status === RevisionStatus.COMPLETED ? 'bg-green-500' : 'bg-orange-400')
-                                            : 'bg-blue-400'
-                                            }`}></div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-semibold text-gray-900 truncate group-hover:text-primary transition-colors">{event.topic.title}</h4>
-                                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">{event.type}</span>
-                                                {event.status && (
-                                                    <span className={`uppercase font-bold text-[10px] ${event.status === RevisionStatus.COMPLETED ? 'text-green-600' : 'text-orange-500'
-                                                        }`}>
-                                                        {event.status}
-                                                    </span>
-                                                )}
+                                {selectedEvents.map((event, idx) => {
+                                    const isRevision = event.type === 'revision';
+
+                                    // Logic: Show completion only if date <= today
+                                    // Compare date strings YYYY-MM-DD
+                                    const eventDateStr = selectedDateKey; // The Key IS the date string
+                                    const todayStr = formatDateKey(today);
+                                    const isFuture = eventDateStr > todayStr;
+                                    const canComplete = !isFuture;
+                                    const isCompleted = event.status === RevisionStatus.COMPLETED;
+
+                                    return (
+                                        <Link
+                                            to={`/topic/${event.topic.id}`}
+                                            key={`${event.topic.id}-${idx}`}
+                                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group relative"
+                                        >
+                                            <div className={`shrink-0 w-2 h-2 rounded-full ${getDotColor(event)}`}></div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-semibold text-gray-900 truncate group-hover:text-primary transition-colors">{event.topic.title}</h4>
+                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                    <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">{event.type}</span>
+                                                    {event.status && (
+                                                        <span className={`uppercase font-bold text-[10px] ${event.status === RevisionStatus.COMPLETED ? 'text-green-600' : 'text-red-500'
+                                                            }`}>
+                                                            {event.status}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </Link>
-                                ))}
+
+                                            {/* Action Checkbox */}
+                                            {/* Logic: 
+                                                - If status is PENDING/MISSED: Show ONLY if !isFuture (canComplete)
+                                                - If status is COMPLETED: Always show (to allow Undo/Uncheck)
+                                            */}
+                                            {isRevision && event.revId && (canComplete || isCompleted) && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        onStatusUpdate(
+                                                            event.topic.id,
+                                                            event.revId!,
+                                                            isCompleted ? RevisionStatus.PENDING : RevisionStatus.COMPLETED
+                                                        );
+                                                    }}
+                                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-sm shrink-0 ${isCompleted
+                                                        ? 'bg-green-500 text-white shadow-md'
+                                                        : 'bg-gray-100 hover:bg-green-500 hover:text-white text-gray-400'
+                                                        }`}
+                                                    title={isCompleted ? "Mark as Pending" : "Mark as Done"}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </Link>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

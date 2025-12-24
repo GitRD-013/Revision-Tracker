@@ -64,8 +64,16 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
                 onMouseLeave={() => onHoverChange(false)}
             >
                 {/* Logo */}
-                <div className={`flex items-center min-h-[89px] py-6 border-b border-gray-100 transition-all duration-300
-                    justify-start px-6 ${!isExpanded ? 'lg:justify-center lg:px-4' : ''}`}>
+                <div
+                    className={`flex items-center min-h-[89px] py-6 border-b border-gray-100 transition-all duration-300
+                    justify-start px-6 ${!isExpanded ? 'lg:justify-center lg:px-4' : ''} cursor-pointer`}
+                    onClick={() => {
+                        // Tablet Touch Logic: Toggle on tap if device doesn't support hover
+                        if (window.matchMedia('(hover: none)').matches) {
+                            onHoverChange(!isExpanded);
+                        }
+                    }}
+                >
                     <div className={`flex items-center ${isExpanded ? 'gap-3' : 'gap-3 lg:gap-0'}`}>
                         <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center text-white shrink-0">
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" /></svg>
@@ -106,6 +114,7 @@ const SideNavigation: React.FC<SideNavigationProps> = ({ isOpen, onCloseMobile, 
                 <div className="p-4 border-t border-gray-100">
                     <Link
                         to="/profile"
+                        onClick={onCloseMobile}
                         className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all group ${!showExpanded ? 'justify-center' : ''}`}
                         title="My Profile"
                     >

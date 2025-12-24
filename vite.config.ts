@@ -10,6 +10,13 @@ export default defineConfig(() => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
+        devOptions: {
+          enabled: true,
+          type: 'module', // essential for custom sw.ts
+        },
         manifest: {
           name: 'DiggiClass',
           short_name: 'DiggiClass',
@@ -27,7 +34,7 @@ export default defineConfig(() => {
           display: 'standalone',
           scope: '/',
           start_url: '/',
-          orientation: 'portrait'
+          orientation: 'any'
         }
       })
     ],

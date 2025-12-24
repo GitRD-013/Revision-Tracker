@@ -112,6 +112,9 @@ const ForgotPasswordPage: React.FC = () => {
                                 Don't have an account? Sign up
                             </Link>
                         </div>
+                        <p className="mt-4 text-center text-xs text-gray-400">
+                            Note: Check your Spam/Junk folder if you don't receive the email.
+                        </p>
                     </div>
                 </div>
             </div>

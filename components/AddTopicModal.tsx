@@ -1,27 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Topic, AppSettings, RevisionStatus, Revision } from '../types';
+import { Topic, AppSettings } from '../types';
 import CustomDropdown from './UI/CustomDropdown';
 import CustomDatePicker from './UI/CustomDatePicker';
 import CustomTimePicker from './UI/CustomTimePicker';
 import { GOOGLE_CALENDAR_COLORS } from '../services/calendarService';
-
-// --- Helpers ---
-const generateRevisions = (startDate: string, intervals: number[]): Revision[] => {
-    return intervals.map((days) => {
-        const [y, m, d] = startDate.split('-').map(Number);
-        const date = new Date(y, m - 1, d);
-        date.setDate(date.getDate() + days);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-
-        return {
-            id: crypto.randomUUID(),
-            date: `${year}-${month}-${day}`,
-            status: RevisionStatus.PENDING
-        };
-    });
-};
+import { generateRevisions } from '../services/revisionService';
 
 const INPUT_STYLE = "w-full bg-white border border-gray-200 text-gray-900 text-sm rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary block p-3.5 transition-all outline-none";
 
@@ -79,10 +62,14 @@ interface AddTopicModalProps {
     onClose: () => void;
     settings: AppSettings;
     onSave: (t: Topic, calendarOptions?: { time: string, colorId: string }) => void;
+    onUpdateSettings?: (s: AppSettings) => void;
     initialData?: Topic | null;
 }
 
-const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings, onSave, initialData }) => {
+// --- Constants ---
+// No hardcoded map. We generate colors dynamically.
+
+const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings, onSave, onUpdateSettings, initialData }) => {
     const [title, setTitle] = useState('');
     const [subject, setSubject] = useState('');
     const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
@@ -93,6 +80,35 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
     const [selectedTime, setSelectedTime] = useState('09:00');
     const [selectedColor, setSelectedColor] = useState('5'); // Default Banana (Yellow)
 
+    // Auto-Select Color based on Subject (Index-based to ensure distribution)
+    useEffect(() => {
+        if (!subject) return;
+
+        const normalizedSubject = subject.toLowerCase().trim();
+        const existingIndex = settings.subjects.findIndex(s => s.toLowerCase() === normalizedSubject);
+
+        let colorIndex = 0;
+
+        if (existingIndex !== -1) {
+            // Case 1: Subject is in the saved list.
+            // Distribute colors deterministically based on order.
+            colorIndex = existingIndex % GOOGLE_CALENDAR_COLORS.length;
+        } else {
+            // Case 2: New/Custom subject not yet saved.
+            // We want a stable color that ideally doesn't clash with the first few default ones.
+            // We can use a hash, but offset it by the current count to "append" it visually.
+            let hash = 0;
+            for (let i = 0; i < normalizedSubject.length; i++) {
+                hash = normalizedSubject.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            // Use the hash mixed with the current topics length to spread it out
+            colorIndex = (Math.abs(hash) + settings.subjects.length) % GOOGLE_CALENDAR_COLORS.length;
+        }
+
+        const mappedColor = GOOGLE_CALENDAR_COLORS[colorIndex].id;
+        setSelectedColor(mappedColor);
+    }, [subject, settings.subjects]);
+
     // Reset form when modal opens or data changes
     useEffect(() => {
         if (isOpen) {
@@ -102,18 +118,24 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
                 setDifficulty(initialData.difficulty);
                 setStartDate(initialData.startDate || new Date().toISOString().split('T')[0]);
                 setNotes(initialData.notes || '');
+                // For editing, we don't necessarily override time unless we stored it on the revision (we don't currently store time on revision objects, just events)
+                // So default to current setting or standard
+                setSelectedTime(settings.defaultCalendarTime || '09:00');
+
+                // For editing, we trigger the subject effect which will set the color.
+                // This mimics "restoring" the color if it matches the subject.
             } else {
                 setTitle('');
                 setSubject(settings.subjects[0] || 'General');
                 setDifficulty('Medium');
-                setDifficulty('Medium');
                 setStartDate(new Date().toISOString().split('T')[0]);
                 setNotes('');
-                setSelectedTime('09:00');
+                // Use remembered time
+                setSelectedTime(settings.defaultCalendarTime || '09:00');
                 setSelectedColor('5');
             }
         }
-    }, [isOpen, initialData, settings.subjects]);
+    }, [isOpen, initialData, settings.subjects, settings.defaultCalendarTime]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,6 +151,12 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
             notes,
             revisions: initialData?.revisions || generateRevisions(startDate, settings.defaultIntervals),
         };
+
+        // Remember this time for next time (if changed)
+        if (onUpdateSettings && selectedTime !== settings.defaultCalendarTime && !initialData) {
+            // Only update default on NEW topics to avoid overwriting preference when just editing an old topic's details
+            onUpdateSettings({ ...settings, defaultCalendarTime: selectedTime });
+        }
 
         onSave(newTopic, { time: selectedTime, colorId: selectedColor });
         onClose();
@@ -218,10 +246,10 @@ const AddTopicModal: React.FC<AddTopicModalProps> = ({ isOpen, onClose, settings
 
                 {/* Footer */}
                 <div className="p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end gap-3">
-                    <button type="button" onClick={onClose} className="px-6 py-2.5 text-gray-700 font-semibold hover:bg-gray-200/50 rounded-xl transition-all active:scale-95">
+                    <button type="button" onClick={onClose} className="px-6 h-12 flex items-center text-gray-700 font-semibold hover:bg-gray-200/50 rounded-xl transition-all active:scale-95">
                         Cancel
                     </button>
-                    <button type="submit" form="topic-form" className="px-8 py-2.5 bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:scale-95">
+                    <button type="submit" form="topic-form" className="px-8 h-12 flex items-center bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl shadow-soft hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:scale-95">
                         {initialData ? 'Save Changes' : 'Create Topic'}
                     </button>
                 </div>

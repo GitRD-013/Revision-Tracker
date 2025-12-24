@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getMessaging } from "firebase/messaging";
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -16,11 +17,12 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+getAnalytics(app);
 
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const messaging = typeof window !== "undefined" ? getMessaging(app) : null;
 
 // Enable offline persistence for Firestore
 enableIndexedDbPersistence(db).catch((err) => {

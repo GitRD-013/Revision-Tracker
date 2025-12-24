@@ -44,33 +44,35 @@ const HeatmapCalendar: React.FC<HeatmapCalendarProps> = ({ topics }) => {
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 overflow-x-auto">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Learning Activity</h3>
-            <div className="flex gap-1 min-w-max pb-2">
-                {/* We'll render columns for weeks. 365 days is roughly 52 weeks */}
-                {Array.from({ length: 53 }).map((_, weekIndex) => (
-                    <div key={weekIndex} className="flex flex-col gap-1">
-                        {Array.from({ length: 7 }).map((_, dayIndex) => {
-                            const dayOfYearIndex = weekIndex * 7 + dayIndex;
-                            if (dayOfYearIndex >= days.length) return null;
+            <div className="overflow-x-auto pb-2">
+                <div className="flex gap-1 min-w-max">
+                    {/* We'll render columns for weeks. 365 days is roughly 52 weeks */}
+                    {Array.from({ length: 53 }).map((_, weekIndex) => (
+                        <div key={weekIndex} className="flex flex-col gap-1">
+                            {Array.from({ length: 7 }).map((_, dayIndex) => {
+                                const dayOfYearIndex = weekIndex * 7 + dayIndex;
+                                if (dayOfYearIndex >= days.length) return null;
 
-                            const dateStr = days[dayOfYearIndex];
-                            const count = calendarData[dateStr] || 0;
+                                const dateStr = days[dayOfYearIndex];
+                                const count = calendarData[dateStr] || 0;
 
-                            return (
-                                <div
-                                    key={dateStr}
-                                    className={`w-3 h-3 rounded-sm ${getColor(count)} transition-all duration-200 hover:scale-150 hover:z-10 cursor-pointer`}
-                                    onMouseEnter={(e) => {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setHoveredCell({ date: dateStr, count, rect });
-                                    }}
-                                    onMouseLeave={() => setHoveredCell(null)}
-                                />
-                            );
-                        })}
-                    </div>
-                ))}
+                                return (
+                                    <div
+                                        key={dateStr}
+                                        className={`w-3 h-3 rounded-sm ${getColor(count)} transition-all duration-200 hover:scale-150 hover:z-10 cursor-pointer`}
+                                        onMouseEnter={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setHoveredCell({ date: dateStr, count, rect });
+                                        }}
+                                        onMouseLeave={() => setHoveredCell(null)}
+                                    />
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 mt-2 text-xs text-gray-400">
