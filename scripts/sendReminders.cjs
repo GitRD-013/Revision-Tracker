@@ -50,7 +50,8 @@ async function sendRevisionReminders() {
                     ? `You have revisions due for: ${topicNames} and ${moreCount} more.`
                     : `You have revisions due for: ${topicNames}.`;
 
-                const payload = {
+                const message = {
+                    tokens: fcmTokens,
                     notification: {
                         title: "Revision Reminder 📝",
                         body: body,
@@ -60,10 +61,10 @@ async function sendRevisionReminders() {
                     }
                 };
 
-                const sendPromise = messaging.sendToDevice(fcmTokens, payload)
+                const sendPromise = messaging.sendEachForMulticast(message)
                     .then(async (response) => {
                         const tokensToRemove = [];
-                        response.results.forEach((result, index) => {
+                        response.responses.forEach((result, index) => {
                             const error = result.error;
                             if (error) {
                                 console.error('Failure sending notification to', fcmTokens[index], error);
