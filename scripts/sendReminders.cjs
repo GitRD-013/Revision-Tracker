@@ -52,10 +52,6 @@ async function sendRevisionReminders() {
 
                 const message = {
                     tokens: fcmTokens,
-                    notification: {
-                        title: "Revision Reminder 📝",
-                        body: body,
-                    },
                     data: {
                         url: "/",
                         title: "Revision Reminder 📝",
