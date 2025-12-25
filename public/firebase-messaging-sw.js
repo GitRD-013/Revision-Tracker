@@ -14,12 +14,16 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
-    // Customize notification here
-    const notificationTitle = payload.notification.title;
+
+    // Prefer data payload for manual handling
+    const notificationTitle = payload.data?.title || payload.notification?.title || 'Revision Reminder';
+    const notificationBody = payload.data?.body || payload.notification?.body || 'You have topics due for revision.';
+
     const notificationOptions = {
-        body: payload.notification.body,
+        body: notificationBody,
         icon: '/icon-192x192.png', // Ensure this icon exists
-        data: payload.data
+        data: payload.data,
+        tag: 'revision-reminder' // Replace existing notifications with same tag
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);

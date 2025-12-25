@@ -57,7 +57,9 @@ async function sendRevisionReminders() {
                         body: body,
                     },
                     data: {
-                        url: "/"
+                        url: "/",
+                        title: "Revision Reminder 📝",
+                        body: body
                     }
                 };
 
