@@ -355,31 +355,8 @@ const AppContent = () => {
     }, [currentUser]);
 
     // Check for notifications when topics or settings change
-    // Check for notifications when topics or settings change
-    useEffect(() => {
-        // Initial check on load (if not sent today)
-        if (topics.length > 0 && settings.notifications.enabled) {
-            NotificationService.checkAndSendDueNotifications(topics, settings);
-        }
-
-        // Polling for Time Match (every 30s)
-        const intervalId = setInterval(() => {
-            if (!settings.notifications.enabled) return;
-
-            const now = new Date();
-            const currentHours = String(now.getHours()).padStart(2, '0');
-            const currentMinutes = String(now.getMinutes()).padStart(2, '0');
-            const currentTime = `${currentHours}:${currentMinutes}`; // "09:00"
-
-            if (currentTime === settings.notifications.reminderTime) {
-                // If the time matches, we try to send. 
-                // The service itself has a latch (localStorage) to prevent double sending in the same day.
-                NotificationService.checkAndSendDueNotifications(topics, settings);
-            }
-        }, 30000); // Check every 30 seconds
-
-        return () => clearInterval(intervalId);
-    }, [topics, settings.notifications.enabled, settings.notifications.reminderTime]);
+    // Client-side polling removed in favor of Server-Side Cloud Functions
+    // This ensures notifications work even when app is closed.
 
     // Initialize Google Calendar Service & Listeners
     useEffect(() => {
@@ -676,7 +653,7 @@ const AppContent = () => {
                 {/* Skeleton Main Content */}
                 <div className="flex-1 p-6 space-y-8">
                     {/* Header Skeleton */}
-                    <div className="flex justify-between items-end">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                         <div className="space-y-2">
                             <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
                             <div className="h-4 w-32 bg-gray-100 rounded-lg animate-pulse"></div>

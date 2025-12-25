@@ -1,4 +1,4 @@
-import { Topic, AppSettings, RevisionStatus } from '../types';
+import { Topic, AppSettings } from '../types';
 import { messaging, db } from '../firebase';
 import { getToken, onMessage, Unsubscribe, MessagePayload } from 'firebase/messaging';
 import { doc, setDoc, arrayUnion } from 'firebase/firestore';
@@ -105,49 +105,7 @@ export const onMessageListener = (callback: (payload: MessagePayload) => void): 
 
 // --- Local Check Logic ---
 
-export const checkAndSendDueNotifications = (topics: Topic[], settings: AppSettings) => {
-    if (!settings.notifications.enabled) return;
-
-    const today = new Date().toISOString().split('T')[0];
-    const lastSentDate = localStorage.getItem('lastNotificationDate');
-
-    // Prevent spam: If already sent today, skip. 
-    // TODO: Improve this for "Multiple times per day" if using local logic.
-    // For now, if we want multiple checks, we might store "lastSentTime" and check if > 4 hours passed?
-
-    // Changing logic to allow multiple notifications per day (e.g., every 6 hours) if revisions are pending
-    const now = Date.now();
-    const lastSentTime = parseInt(localStorage.getItem('lastNotificationTime') || '0');
-    const FOUR_HOURS = 4 * 60 * 60 * 1000;
-
-    if (now - lastSentTime < FOUR_HOURS && lastSentDate === today) {
-        return;
-    }
-
-    let dueCount = 0;
-    let missedCount = 0;
-
-    topics.forEach(topic => {
-        topic.revisions.forEach(rev => {
-            if (rev.status === RevisionStatus.PENDING && rev.date === today) {
-                dueCount++;
-            }
-            if (rev.status === RevisionStatus.PENDING && rev.date < today) {
-                missedCount++;
-            }
-            if (rev.status === RevisionStatus.MISSED) {
-                missedCount++;
-            }
-        });
-    });
-
-    if (dueCount > 0) {
-        sendNotification("Revision Reminder", `You have ${dueCount} topics to revise today!`);
-        localStorage.setItem('lastNotificationDate', today);
-        localStorage.setItem('lastNotificationTime', now.toString());
-    } else if (missedCount > 0) {
-        sendNotification("Missed Sessions", `You have ${missedCount} missed sessions. Time to catch up!`);
-        localStorage.setItem('lastNotificationDate', today);
-        localStorage.setItem('lastNotificationTime', now.toString());
-    }
+// Deprecated: Logic moved to Firebase Cloud Functions for background reliability.
+export const checkAndSendDueNotifications = (_topics: Topic[], _settings: AppSettings) => {
+    // No-op
 };

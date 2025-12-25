@@ -1,88 +1,101 @@
-const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json'); // User must provide this
+const admin = require("firebase-admin");
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-}
+// Initialize Firebase Admin using Environment Variables (from GitHub Secrets)
+// We expect a Service Account JSON string in the FIREBASE_SERVICE_ACCOUNT environment variable
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
 
 const db = admin.firestore();
 const messaging = admin.messaging();
 
-async function checkAndSendReminders() {
-    console.log("Starting Reminder Check...");
+async function sendRevisionReminders() {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = now.toISOString().split("T")[0]; // YYYY-MM-DD
+    console.log("Starting Revision Reminder Check for date:", today);
 
-    // Fetch all users
-    const usersSnapshot = await db.collection('users').get();
+    try {
+        const usersSnapshot = await db.collection("users").get();
+        const notificationsPromises = [];
 
-    for (const userDoc of usersSnapshot.docs) {
-        const userData = userDoc.data();
-        const fcmTokens = userData.fcmTokens || [];
+        for (const userDoc of usersSnapshot.docs) {
+            const userData = userDoc.data();
+            const fcmTokens = userData.fcmTokens || [];
 
-        if (fcmTokens.length === 0) continue;
-        if (userData.settings && userData.settings.notifications && !userData.settings.notifications.enabled) continue;
+            if (fcmTokens.length === 0) continue;
 
-        // Check revisions in subcollection 'topics' or 'userData' field?
-        // Based on storageService.ts, topics are stored in a subcollection `topics` or field?
-        // storageService.ts: saveUserTopics -> setDoc(doc(db, 'users', uid), { topics: ... }, { merge: true }) 
-        // OR checks separate collection? 
-        // Let's assume topics are in the 'topics' field of the user doc based on 'saveUserTopics' text in App.tsx
-        // Wait, App.tsx line 429 calls saveUserTopics. I need to know where it saves.
-        // Assuming it saves to `users/{uid}` document under `topics` field.
+            let pendingTopics = [];
+            // Assuming 'topics' object or array structure in Firestore. 
+            // Adapt this to match your exact Firestore structure if 'topics' is a subcollection.
+            // Current app code suggests 'saveUserTopics' saves strictly to a field or subcollection? 
+            // Based on storageService.ts: setDoc(doc(db, 'users', userId), { topics }, { merge: true })
+            // So 'topics' IS a field in the user document.
 
-        const topics = userData.topics || [];
-        let dueCount = 0;
+            if (userData.topics && Array.isArray(userData.topics)) {
+                pendingTopics = userData.topics.filter(topic => {
+                    // topic.revisions is an array of objects
+                    return topic.revisions && topic.revisions.some(rev =>
+                        (rev.status === "Pending" || rev.status === "PENDING") && rev.date <= today
+                    );
+                });
+            }
 
-        topics.forEach(topic => {
-            if (!topic.revisions) return;
-            topic.revisions.forEach(rev => {
-                if ((rev.status === 'PENDING' && rev.date === today) || rev.status === 'MISSED') {
-                    dueCount++;
-                }
-            });
-        });
+            if (pendingTopics.length > 0) {
+                console.log(`User ${userDoc.id} has ${pendingTopics.length} pending topics.`);
+                const topicNames = pendingTopics.map(t => t.title).slice(0, 2).join(", ");
+                const moreCount = pendingTopics.length - 2;
+                const body = moreCount > 0
+                    ? `You have revisions due for: ${topicNames} and ${moreCount} more.`
+                    : `You have revisions due for: ${topicNames}.`;
 
-        if (dueCount > 0) {
-            console.log(`User ${userDoc.id} has ${dueCount} due items.`);
+                const payload = {
+                    notification: {
+                        title: "Revision Reminder 📝",
+                        body: body,
+                    },
+                    data: {
+                        url: "/"
+                    }
+                };
 
-            // Check spam prevention (optional, via Firestore 'lastNotificationSent')
-            // ...
+                const sendPromise = messaging.sendToDevice(fcmTokens, payload)
+                    .then(async (response) => {
+                        const tokensToRemove = [];
+                        response.results.forEach((result, index) => {
+                            const error = result.error;
+                            if (error) {
+                                console.error('Failure sending notification to', fcmTokens[index], error);
+                                if (error.code === 'messaging/invalid-registration-token' ||
+                                    error.code === 'messaging/registration-token-not-registered') {
+                                    tokensToRemove.push(fcmTokens[index]);
+                                }
+                            }
+                        });
 
-            const message = {
-                data: {
-                    title: "Revision Reminder",
-                    body: `You have ${dueCount} topics to revise today!`,
-                    url: "/"
-                },
-                tokens: fcmTokens
-            };
-
-            try {
-                const response = await messaging.sendMulticast(message);
-                console.log(`Sent to ${userDoc.id}: Success ${response.successCount}, Failure ${response.failureCount}`);
-
-                // Cleanup invalid tokens
-                if (response.failureCount > 0) {
-                    const failedTokens = [];
-                    response.responses.forEach((resp, idx) => {
-                        if (!resp.success) {
-                            failedTokens.push(fcmTokens[idx]);
+                        if (tokensToRemove.length > 0) {
+                            await db.collection("users").doc(userDoc.id).update({
+                                fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokensToRemove)
+                            });
                         }
+                    })
+                    .catch(err => {
+                        console.error("Error sending message to user", userDoc.id, err);
                     });
-                    // Remove failed tokens from DB
-                    await userDoc.ref.update({
-                        fcmTokens: admin.firestore.FieldValue.arrayRemove(...failedTokens)
-                    });
-                }
-            } catch (error) {
-                console.error("Error sending message:", error);
+
+                notificationsPromises.push(sendPromise);
             }
         }
+
+        await Promise.all(notificationsPromises);
+        console.log("Finished sending revision reminders.");
+        process.exit(0);
+
+    } catch (error) {
+        console.error("Error in sendRevisionReminders:", error);
+        process.exit(1);
     }
 }
 
-checkAndSendReminders().then(() => process.exit());
+sendRevisionReminders();
