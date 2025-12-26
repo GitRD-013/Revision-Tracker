@@ -237,8 +237,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                 const data = JSON.parse(content);
                 if (!data.topics && !data.settings) throw new Error("Invalid file format");
 
+                // WARN if empty topics
+                if (!data.topics || data.topics.length === 0) {
+                    showToast("Warning: The imported file has 0 topics.", 'info');
+                }
+
+                // PROTECT Authentication: Don't let an old backup disconnect us
+                if (isGoogleConnected && data.settings) {
+                    data.settings.googleCalendarConnected = true;
+                    data.settings.googleAccountEmail = connectedEmail || data.settings.googleAccountEmail; // Keep current email if available
+                }
+
                 // 2. Import Local Data first
-                const success = importAppData(content);
+                // We pass the modified 'data' stringified to ensure storageService uses the protected version
+                const success = importAppData(JSON.stringify(data));
                 if (!success) throw new Error("Failed to save imported data locally");
 
                 // 3. Smart Sync with Google Calendar
