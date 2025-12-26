@@ -9,7 +9,7 @@ import { ToastType } from './UI/Toast';
 import CustomDropdown from './UI/CustomDropdown';
 import CustomTimePicker from './UI/CustomTimePicker';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface SettingsPageProps {
     settings: AppSettings;
@@ -52,21 +52,98 @@ const IntervalsInput: React.FC<{ value: number[], onChange: (val: number[]) => v
     );
 };
 
+const INTERVAL_PRESETS = {
+    DEFAULT: [1, 7, 14, 30, 60],
+    FAST: [1, 3, 7, 15],
+    SLOW: [10, 20, 40, 90]
+};
+
+const isPresetMatch = (arr1: number[], arr2: number[]) => {
+    if (arr1.length !== arr2.length) return false;
+    return arr1.every((val, index) => val === arr2[index]);
+};
+
 const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTopics, onSave, showToast }) => {
     const navigate = useNavigate();
+    const location = useLocation();
+
+
     const { currentUser } = useAuth();
     const [localSettings, setLocalSettings] = useState(settings);
     const [newSubject, setNewSubject] = useState('');
     const [importError, setImportError] = useState<string | null>(null);
     const [importSuccess, setImportSuccess] = useState<string | null>(null);
-    const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+    const [isGoogleConnected, setIsGoogleConnected] = useState(settings.googleCalendarConnected);
+    const [connectedEmail, setConnectedEmail] = useState<string | null>(settings.googleAccountEmail || null);
 
     // Confirmation State
     const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void }>({
         isOpen: false, title: '', message: '', onConfirm: () => { }
     });
 
+    // Check for "Customized" intervals
+    const isDefaultPreset = isPresetMatch(localSettings.defaultIntervals, INTERVAL_PRESETS.DEFAULT);
+    const isFastPreset = isPresetMatch(localSettings.defaultIntervals, INTERVAL_PRESETS.FAST);
+    const isSlowPreset = isPresetMatch(localSettings.defaultIntervals, INTERVAL_PRESETS.SLOW);
+    const areIntervalsCustomized = !isDefaultPreset && !isFastPreset && !isSlowPreset;
+
+    // Initial check and URL param check
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const connected = params.get('google_connected');
+        const email = params.get('google_email');
+
+        if (connected === 'true') {
+            setIsGoogleConnected(true);
+
+            // Sync logic ...
+            if (email) {
+                setConnectedEmail(email);
+                // Update settings with this email
+                const newSettings = { ...settings, googleCalendarConnected: true, googleAccountEmail: email };
+                setLocalSettings(prev => ({ ...prev, googleCalendarConnected: true, googleAccountEmail: email }));
+                onSave(newSettings); // Persist immediately
+            }
+
+            // ... (sync logic handles the rest)
+        }
+
+        // Ensure local state matches prop if not just redirected
+        if (!connected) {
+            setIsGoogleConnected(settings.googleCalendarConnected);
+            setConnectedEmail(settings.googleAccountEmail || null);
+
+            // Independent check: If connected but no email, try to fetch it now
+            if (settings.googleCalendarConnected && !settings.googleAccountEmail) {
+                const fetchMissingEmail = async () => {
+                    try {
+                        const hasToken = await CalendarService.ensureToken();
+                        if (hasToken) {
+                            const token = window.gapi.client.getToken()?.access_token;
+                            if (token) {
+                                const fetchedEmail = await CalendarService.fetchUserEmail(token);
+                                if (fetchedEmail) {
+                                    setConnectedEmail(fetchedEmail);
+                                    // Update persistent settings too so we don't fetch every time
+                                    const updated = { ...settings, googleAccountEmail: fetchedEmail };
+                                    onSave(updated);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Could not fetch missing email on mount", e);
+                    }
+                };
+                fetchMissingEmail();
+            }
+        }
+
+    }, [location.search, settings.googleCalendarConnected, settings.googleAccountEmail]);
+
+
     // ... handlers ...
+
+
 
     const handleAddSubject = () => {
         if (newSubject && !localSettings.subjects.includes(newSubject)) {
@@ -183,12 +260,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                     // Add existing topics first
                     currentTopics.forEach(t => topicMap.set(t.id, t));
 
-                    // Merge imported topics (overwriting if ID matches)
-                    importedTopics.forEach((t: Topic) => topicMap.set(t.id, t));
+                    // Merge imported topics (SAFE MERGE: Skip if ID exists)
+                    // "Imported topics must not overwrite existing data"
+                    let skippedCount = 0;
+                    importedTopics.forEach((t: Topic) => {
+                        if (!topicMap.has(t.id)) {
+                            topicMap.set(t.id, t);
+                        } else {
+                            skippedCount++;
+                        }
+                    });
 
                     mergedTopics = Array.from(topicMap.values());
-
-                    console.log(`Merged ${importedTopics.length} imported topics with ${currentTopics.length} existing topics. Result: ${mergedTopics.length}`);
+                    console.log(`Merged topics. Imported ${importedTopics.length}, Skipped ${skippedCount} duplicates.`);
                 }
 
                 let updatedTopics = mergedTopics;
@@ -197,56 +281,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                 if (shouldSync && updatedTopics.length > 0) {
                     showToast("Imported locally. Syncing with Google Calendar...", 'info');
 
-                    const hasToken = await CalendarService.ensureToken();
+                    const result = await CalendarService.batchSyncRevisions(updatedTopics);
+                    updatedTopics = result.updatedTopics;
+                    syncedCount = result.syncedCount;
 
-                    if (hasToken) {
-                        const allDates = updatedTopics.flatMap((t: any) => t.revisions.map((r: any) => r.date));
-                        const minDate = allDates.sort()[0] || new Date().toISOString();
-
-                        const existingEvents = await CalendarService.listEvents(new Date(minDate).toISOString(), 1000);
-
-                        // Removed unused eventExists helper to fix lint warning
-
-
-                        for (const topic of updatedTopics) {
-
-                            for (const rev of topic.revisions) {
-                                if (rev.status !== 'CANCELLED') {
-                                    const summaryBase = `Revise: ${topic.title}`;
-                                    // Robust check: Matches exact title OR title with subject suffix e.g. "Revise: Math [Algebra]"
-                                    const existingEvent = existingEvents.find((ev: any) => {
-                                        const evDate = ev.start.dateTime || ev.start.date;
-                                        if (!evDate.startsWith(rev.date)) return false;
-                                        return ev.summary === summaryBase || ev.summary.startsWith(`${summaryBase} [`);
-                                    });
-
-                                    if (!existingEvent) {
-                                        // Not on calendar -> Create it
-                                        const eventId = await CalendarService.addEventToCalendar(
-                                            topic.title,
-                                            rev.date,
-                                            topic.subject
-                                        );
-                                        if (eventId) {
-                                            rev.googleEventId = eventId;
-                                            syncedCount++;
-                                        }
-                                    } else {
-                                        // Exists on calendar -> Heal local ID if missing/wrong
-                                        if (rev.googleEventId !== existingEvent.id) {
-                                            console.log(`Restoring link for ${topic.title} on ${rev.date}`);
-                                            rev.googleEventId = existingEvent.id;
-                                            syncedCount++; // Trigger save
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (syncedCount > 0) {
-                            localStorage.setItem('revision_topics', JSON.stringify(updatedTopics));
-                            showToast(`Synced/Updated ${syncedCount} events with calendar.`, 'success');
-                        }
+                    if (syncedCount > 0) {
+                        showToast(`Synced/Updated ${syncedCount} events with calendar.`, 'success');
                     }
                 }
 
@@ -268,6 +308,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                     }
                 }
 
+                // Save to LocalStorage as fallback
+                localStorage.setItem('revision_topics', JSON.stringify(updatedTopics));
+
                 setImportSuccess("Data imported and synced! Reloading...");
                 setTimeout(() => window.location.reload(), 2000);
 
@@ -280,90 +323,40 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
         reader.readAsText(file);
     };
 
-    const handleGoogleSync = async () => {
+    const syncExistingTopics = async () => {
         try {
-            await CalendarService.handleAuthClick();
-
-            // 1. Update settings to persist connection
-            const updatedSettings = { ...localSettings, googleCalendarConnected: true };
-            setLocalSettings(updatedSettings);
-            onSave(updatedSettings);
-            setIsGoogleConnected(true);
-            showToast("Google Calendar connected!", 'success');
-
-            // 2. Retroactive Sync: Check if we have unsynced topics
             showToast("Syncing existing topics to calendar...", 'info');
 
+            // Get latest data
             const data = getAllData();
             const topics = data.topics || [];
-            let updatedTopics = [...topics];
-            let syncedCount = 0;
 
-            // Fetch existing events to prevent duplicates
-            // We look back reasonably far (e.g. 1 year) or just grab everything by omitting minTime if API allows, 
-            // but effectively we care about the dates in our topics.
-            const allDates = updatedTopics.flatMap(t => t.revisions.map(r => r.date));
-            if (allDates.length > 0) {
-                const minDate = allDates.sort()[0];
-                // Use a large maxResults to be safe
-                const existingEvents = await CalendarService.listEvents(new Date(minDate).toISOString(), 2000);
+            const { updatedTopics, syncedCount } = await CalendarService.batchSyncRevisions(topics);
 
-                // Removed unused eventExists helper to fix lint warning
-
-
-                for (const topic of updatedTopics) {
-                    for (const rev of topic.revisions) {
-                        if (rev.status !== 'CANCELLED') {
-                            const summaryBase = `Revise: ${topic.title}`;
-                            // Robust check: Matches exact title OR title with subject suffix
-                            const existingEvent = existingEvents.find((ev: any) => {
-                                const evDate = ev.start.dateTime || ev.start.date;
-                                if (!evDate.startsWith(rev.date)) return false;
-                                return ev.summary === summaryBase || ev.summary.startsWith(`${summaryBase} [`);
-                            });
-
-                            if (!existingEvent) {
-                                // Create missing event
-                                const eventId = await CalendarService.addEventToCalendar(
-                                    topic.title,
-                                    rev.date,
-                                    topic.subject
-                                );
-                                if (eventId) {
-                                    rev.googleEventId = eventId;
-                                    syncedCount++;
-                                }
-                            } else {
-                                // Link existing event if ID missing
-                                if (rev.googleEventId !== existingEvent.id) {
-                                    rev.googleEventId = existingEvent.id;
-                                    syncedCount++;
-                                }
-                            }
-                        }
-                    }
+            if (syncedCount > 0) {
+                localStorage.setItem('revision_topics', JSON.stringify(updatedTopics));
+                if (currentUser) {
+                    const { saveUserTopics } = await import('../services/storageService');
+                    await saveUserTopics(currentUser.uid, updatedTopics);
                 }
-
-                if (syncedCount > 0) {
-                    // Persist updates
-                    localStorage.setItem('revision_topics', JSON.stringify(updatedTopics));
-
-                    if (currentUser) {
-                        const { saveUserTopics } = await import('../services/storageService');
-                        await saveUserTopics(currentUser.uid, updatedTopics);
-                    }
-
-                    showToast(`Synced ${syncedCount} past/future events to calendar.`, 'success');
-                } else {
-                    showToast("All topics are already synced.", 'success');
-                }
+                showToast(`Synced ${syncedCount} past/future events to calendar.`, 'success');
+            } else {
+                showToast("All topics are already synced.", 'success');
             }
-
         } catch (error: any) {
             console.error(error);
             const errorMsg = error?.details || error?.message || (typeof error === 'string' ? error : "Unknown error");
-            showToast(`Connection Failed: ${errorMsg}`, 'error');
-            setIsGoogleConnected(false); // Revert UI if auth failed (though generally auth throws before we set true)
+            showToast(`Sync Failed: ${errorMsg}`, 'error');
+        }
+    };
+
+    const handleGoogleSync = async () => {
+        try {
+            await CalendarService.handleAuthClick();
+            // Code below is unreachable due to redirect, moving logic to useEffect -> syncExistingTopics
+        } catch (error: any) {
+            console.error(error);
+            showToast("Connection init failed", 'error');
         }
     };
 
@@ -413,6 +406,75 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
         setLocalSettings(settings);
     }, [settings]);
 
+
+    // Handle Redirect from Supabase Auth (Placed here to access syncExistingTopics)
+    useEffect(() => {
+        // Check both React Location (hash params) and Window Location (search params before hash)
+        const hashParams = new URLSearchParams(location.search);
+        const windowParams = new URLSearchParams(window.location.search);
+        const isConnected = hashParams.get('google_connected') === 'true' || windowParams.get('google_connected') === 'true';
+
+        if (isConnected) {
+            const completeConnection = async () => {
+                showToast("Verifying connection...", 'info');
+                try {
+                    await CalendarService.ensureToken();
+
+                    // Explicitly fetch email if we don't have it yet (URL param failed?)
+                    const email = hashParams.get('google_email') || windowParams.get('google_email');
+                    let emailToUse = email;
+
+                    if (!emailToUse) {
+                        // The token is now set in gapi client by ensureToken
+                        const token = window.gapi.client.getToken()?.access_token;
+                        if (token) {
+                            emailToUse = await CalendarService.fetchUserEmail(token);
+                        }
+                    }
+
+                    // Success Path
+                    setIsGoogleConnected(true);
+                    setLocalSettings(prev => ({
+                        ...prev,
+                        googleCalendarConnected: true,
+                        googleAccountEmail: emailToUse || prev.googleAccountEmail
+                    }));
+                    onSave({
+                        ...localSettings,
+                        googleCalendarConnected: true,
+                        googleAccountEmail: emailToUse || settings.googleAccountEmail
+                    });
+
+                    if (emailToUse) setConnectedEmail(emailToUse);
+
+                    showToast("Google Calendar Connected Successfully!", 'success');
+
+                    const event = new CustomEvent('google-auth-success', { detail: { access_token: 'active' } });
+                    window.dispatchEvent(event);
+
+                    // Trigger initial sync of existing topics
+                    await syncExistingTopics();
+
+                    // Clean URL
+                    if (hashParams.get('google_connected')) {
+                        navigate(location.pathname, { replace: true });
+                    }
+                    if (windowParams.get('google_connected')) {
+                        const newUrl = new URL(window.location.href);
+                        newUrl.searchParams.delete('google_connected');
+                        window.history.replaceState({}, '', newUrl.toString());
+                    }
+
+                } catch (err: any) {
+                    console.error("Connection Verification Failed:", err);
+                    // Show the specific error to the user
+                    const msg = err.message || "Unknown verification error";
+                    showToast(`Verification Failed: ${msg}`, 'error');
+                }
+            };
+            completeConnection();
+        }
+    }, [location.search]);
 
     const CARD_STYLE = "bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-medium transition-shadow duration-300";
 
@@ -476,15 +538,46 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
 
                             {/* Intervals */}
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Revision Intervals (Days)</label>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Revision Intervals (Days)</label>
+                                    {areIntervalsCustomized && (
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[10px] font-bold border border-indigo-100">
+                                            Customized
+                                        </span>
+                                    )}
+                                </div>
                                 <IntervalsInput
                                     value={localSettings.defaultIntervals}
                                     onChange={(newIntervals) => setLocalSettings(prev => ({ ...prev, defaultIntervals: newIntervals }))}
                                 />
                                 <div className="flex flex-wrap gap-2 mt-3">
-                                    <button onClick={() => applyIntervalTemplate([1, 7, 14, 30, 60])} className="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-3 py-1.5 rounded-lg font-medium transition-colors">Default</button>
-                                    <button onClick={() => applyIntervalTemplate([1, 3, 7, 15])} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-medium transition-colors">Fast Learner</button>
-                                    <button onClick={() => applyIntervalTemplate([10, 20, 40, 90])} className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1.5 rounded-lg font-medium transition-colors">Slow Learner</button>
+                                    <button
+                                        onClick={() => applyIntervalTemplate(INTERVAL_PRESETS.DEFAULT)}
+                                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${isDefaultPreset
+                                            ? 'bg-green-100 text-green-700 ring-2 ring-green-500 shadow-sm'
+                                            : 'bg-green-50 hover:bg-green-100 text-green-600 border border-transparent hover:border-green-200'
+                                            }`}
+                                    >
+                                        Default
+                                    </button>
+                                    <button
+                                        onClick={() => applyIntervalTemplate(INTERVAL_PRESETS.FAST)}
+                                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${isFastPreset
+                                            ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 shadow-sm'
+                                            : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border border-transparent hover:border-blue-200'
+                                            }`}
+                                    >
+                                        Fast Learner
+                                    </button>
+                                    <button
+                                        onClick={() => applyIntervalTemplate(INTERVAL_PRESETS.SLOW)}
+                                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${isSlowPreset
+                                            ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-500 shadow-sm'
+                                            : 'bg-orange-50 hover:bg-orange-100 text-orange-600 border border-transparent hover:border-orange-200'
+                                            }`}
+                                    >
+                                        Slow Learner
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -626,12 +719,56 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-gray-900">Google Calendar Sync</h3>
-                            <p className="text-gray-500 text-sm mt-1">
+                            <div className="text-gray-500 text-sm leading-snug">
                                 {isGoogleConnected
-                                    ? "Your revision schedule is currently synced."
+                                    ? <div className="flex flex-col gap-0">
+                                        <span>Your revision schedule is currently synced.</span>
+                                        {connectedEmail ? (
+                                            <div className="mt-1">
+                                                <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-100 font-medium">
+                                                    {connectedEmail}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-amber-600 text-xs font-medium">Email not detected</span>
+                                                <button
+                                                    onClick={async () => {
+                                                        showToast("Refreshing email...", 'info');
+                                                        try {
+                                                            // Always ensure we have a valid token first
+                                                            const hasToken = await CalendarService.ensureToken();
+                                                            if (!hasToken) throw new Error("Could not ensure valid token.");
+
+                                                            // Now it's safe to get from gapi
+                                                            const token = window.gapi?.client?.getToken()?.access_token;
+                                                            if (token) {
+                                                                const email = await CalendarService.fetchUserEmail(token);
+                                                                if (email) {
+                                                                    setConnectedEmail(email);
+                                                                    onSave({ ...settings, googleAccountEmail: email });
+                                                                    showToast("Email fetched: " + email, 'success');
+                                                                } else {
+                                                                    showToast("Email scope missing or fetch failed.", 'error');
+                                                                }
+                                                            } else {
+                                                                showToast("No access token available.", 'error');
+                                                            }
+                                                        } catch (e: any) {
+                                                            console.error("Refresh failed", e);
+                                                            showToast("Refresh failed: " + (e.message || "Unknown"), 'error');
+                                                        }
+                                                    }}
+                                                    className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    Refresh
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     : "Sync your revision schedule to your personal calendar."
                                 }
-                            </p>
+                            </div>
                         </div>
                     </div>
 
@@ -655,7 +792,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
                     <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-6 text-sm text-gray-400">
                         <span>Built by <strong className="text-gray-600 whitespace-nowrap">Rupam Debnath</strong></span>
                         <span className="hidden md:inline">•</span>
-                        <span>Version v1.0</span>
+                        <span>Version v1.1</span>
                     </div>
                 </div>
             </div>

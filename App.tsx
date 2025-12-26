@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Topic, RevisionStatus, AppSettings, DEFAULT_SETTINGS } from './types';
-import { saveUserTopics, saveUserSettings, checkAndMigrateData, saveUserGoogleCredentials, getUserGoogleCredentials, subscribeToUserData } from './services/storageService';
+import { saveUserTopics, saveUserSettings, checkAndMigrateData, saveUserGoogleCredentials, getUserGoogleCredentials, subscribeToUserData, fetchUserData } from './services/storageService';
 
 import * as NotificationService from './services/notificationService';
 import { updateTopicRevisions, generateRevisions } from './services/revisionService';
@@ -22,6 +22,18 @@ import CalendarPage from './components/CalendarPage';
 
 import Toast, { ToastType } from './components/UI/Toast';
 
+// Initialize GAPI globally
+// Initialize GAPI globally
+CalendarService.initGapi(import.meta.env.VITE_GOOGLE_CLIENT_ID || '', (success) => {
+    if (success) {
+        console.log("Google API Initialized");
+        // Dispatch explicit event for components to know GAPI is ready
+        window.dispatchEvent(new Event('gapi-loaded'));
+    } else {
+        console.warn("Google API Initialization Failed");
+    }
+});
+
 // --- CONFIGURATION ---
 
 
@@ -35,7 +47,12 @@ import SideNavigation from './components/SideNavigation';
 import BottomNavigation from './components/BottomNavigation';
 import AddTopicModal from './components/AddTopicModal';
 import CustomDropdown from './components/UI/CustomDropdown';
+import CustomDatePicker from './components/UI/CustomDatePicker';
 import CustomTimePicker from './components/UI/CustomTimePicker';
+import GoogleReconnectionPopup from './components/UI/GoogleReconnectionPopup';
+
+
+
 
 
 
@@ -132,24 +149,7 @@ const SimpleRichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange }
     );
 };
 
-// --- Custom Select Component ---
-const CustomSelect = ({ value, onChange, options, placeholder }: { value: string, onChange: (val: string) => void, options: string[], placeholder?: string }) => {
-    return (
-        <div className="relative">
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className={`${INPUT_STYLE} appearance-none cursor-pointer pr-10`}
-            >
-                {placeholder && <option value="" disabled>{placeholder}</option>}
-                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </div>
-        </div>
-    )
-}
+
 
 
 
@@ -178,13 +178,27 @@ const AddTopicForm = ({ settings, onSave, initialData }: { settings: AppSettings
         if (!title.trim()) return;
         if (isSubmitting) return; // Prevent double submit
         setIsSubmitting(true);
+        // Logic to preserve Past Dates as "Added Date"
+        const now = new Date();
+        // Construct Local YYYY-MM-DD for accurate day comparison
+        const localTodayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+        let finalAddedDate;
+        if (startDate < localTodayStr) {
+            // If explicit past date, force that date (as UTC midnight to match Calendar key)
+            finalAddedDate = new Date(startDate).toISOString();
+        } else {
+            // If today or future, capture the specific timestamp of creation
+            finalAddedDate = now.toISOString();
+        }
+
         const newTopic: Topic = {
             id: initialData?.id || crypto.randomUUID(),
             title,
             subject,
             difficulty,
             startDate,
-            addedDate: initialData?.addedDate || new Date().toISOString(),
+            addedDate: initialData?.addedDate || finalAddedDate,
             notes,
             revisions: initialData?.revisions || generateRevisions(startDate, settings.defaultIntervals),
         };
@@ -219,17 +233,29 @@ const AddTopicForm = ({ settings, onSave, initialData }: { settings: AppSettings
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
-                                <CustomSelect value={subject} onChange={setSubject} options={settings.subjects} />
+                                <CustomDropdown
+                                    label="Subject"
+                                    value={subject}
+                                    onChange={setSubject}
+                                    options={settings.subjects}
+                                    placeholder="Select Subject"
+                                />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Difficulty</label>
-                                <CustomSelect value={difficulty} onChange={(v) => setDifficulty(v as any)} options={['Easy', 'Medium', 'Hard']} />
+                                <CustomDropdown
+                                    label="Difficulty"
+                                    value={difficulty}
+                                    onChange={(v) => setDifficulty(v as any)}
+                                    options={['Easy', 'Medium', 'Hard']}
+                                />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Start Date</label>
-                            <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className={INPUT_STYLE} />
+                            <CustomDatePicker
+                                label="Start Date"
+                                value={startDate}
+                                onChange={setStartDate}
+                            />
                         </div>
 
                         {/* Calendar Customization Section */}
@@ -291,7 +317,36 @@ const EditTopicWrapper = ({ topics, settings, onSave }: { topics: Topic[], setti
 // --- App Content ---
 const AppContent = () => {
     // --- State Management ---
-    const { currentUser, loading } = useAuth();
+    const { currentUser, loading: authLoading } = useAuth(); // Renamed to differentiate
+    const [isDataLoading, setIsDataLoading] = useState(true); // New loading state for data
+    const [showReconnectionPopup, setShowReconnectionPopup] = useState(false);
+
+    // Effect to check Google Connection on Startup
+    useEffect(() => {
+        const checkConnection = async () => {
+            if (sessionStorage.getItem('google_disconnect_ignored')) return;
+            const settingsStr = localStorage.getItem('diggiclass_settings');
+            if (!settingsStr) return;
+
+            const localSettingsCheck = JSON.parse(settingsStr);
+            if (localSettingsCheck.googleCalendarConnected) {
+                try {
+                    if (!window.gapi?.client) return;
+                    await CalendarService.ensureToken();
+                } catch (e: any) {
+                    console.warn("Connection check failed:", e);
+                    if (e.message?.includes("disconnected") || e.message?.includes("re-authentication") || e.message?.includes("access_token")) {
+                        setShowReconnectionPopup(true);
+                    }
+                }
+            }
+        };
+
+        if (window.gapi?.client) checkConnection();
+        const handleGapiLoad = () => checkConnection();
+        window.addEventListener('gapi-loaded', handleGapiLoad);
+        return () => window.removeEventListener('gapi-loaded', handleGapiLoad);
+    }, []);
 
     // Initialize with empty/defaults. Data will be fetched on auth.
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -318,32 +373,45 @@ const AppContent = () => {
             if (currentUser) {
                 try {
                     // Check and migrate local data to Firestore (one-time)
-                    const migrated = await checkAndMigrateData(currentUser.uid);
-                    if (migrated) {
-                        showToast("Local data migrated to cloud", 'success');
-                    }
+                    await checkAndMigrateData(currentUser.uid).catch(e => console.error("Migration check failed", e));
 
                     // Fetch stored Google Credentials (one-time)
-                    const creds = await getUserGoogleCredentials(currentUser.uid);
+                    const creds = await getUserGoogleCredentials(currentUser.uid).catch(e => console.error("Creds fetch failed", e));
                     if (creds) {
                         setGoogleCredentials(creds);
-                        console.log("Loaded Google Credentials from Firestore");
+                    }
+
+                    // [NEW] Fetch Initial Data from Supabase
+                    try {
+                        const initialData = await fetchUserData(currentUser.uid);
+                        if (initialData) {
+                            setTopics(initialData.topics);
+                            setSettings(initialData.settings);
+                        }
+                    } catch (fetchErr) {
+                        console.error("Failed to fetch initial data", fetchErr);
+                    } finally {
+                        setIsDataLoading(false); // Stop loading after initial fetch attempt
                     }
 
                     // Subscribe to Real-time Updates
-                    unsubscribe = subscribeToUserData(currentUser.uid, (data) => {
+                    const sub = subscribeToUserData(currentUser.uid, (data) => {
                         console.log("Real-time update received", data.topics.length);
                         setTopics(data.topics);
                         setSettings(data.settings);
+                        setIsDataLoading(false); // Ensure loading is off on update
                     });
+                    unsubscribe = sub.unsubscribe;
 
                 } catch (error: any) {
                     console.error("Failed to setup sync:", error);
                     showToast(error.message || "Failed to sync data", 'error');
+                    setIsDataLoading(false);
                 }
             } else {
                 setTopics([]);
                 setSettings(DEFAULT_SETTINGS);
+                setIsDataLoading(false);
             }
         };
 
@@ -388,46 +456,19 @@ const AppContent = () => {
 
                 // TRIGGER BATCH SYNC for offline/pending topics
                 console.log("Triggering batch sync for pending topics...");
-                let dataChanged = false;
-                const updatedTopics = await Promise.all(topics.map(async (topic) => {
-                    let revChanged = false;
-                    const syncedRevisions = await Promise.all(topic.revisions.map(async (rev) => {
-                        // Sync condition: PENDING and NO Google ID
-                        if (rev.status === RevisionStatus.PENDING && !rev.googleEventId) {
-                            try {
-                                const eventId = await CalendarService.addEventToCalendar(
-                                    topic.title,
-                                    rev.date,
-                                    topic.subject,
-                                    settings.defaultCalendarTime || '09:00',
-                                    undefined, // Use default color
-                                    topic.id,   // Pass topic ID for idempotency
-                                    rev.id      // Pass revision ID for idempotency
-                                );
 
-                                if (eventId) {
-                                    revChanged = true;
-                                    return { ...rev, googleEventId: eventId };
-                                }
-                            } catch (err) {
-                                console.error("Batch Sync Error:", err);
-                            }
-                        }
-                        return rev;
-                    }));
+                try {
+                    const { updatedTopics, syncedCount } = await CalendarService.batchSyncRevisions(topics);
 
-                    if (revChanged) {
-                        dataChanged = true;
-                        return { ...topic, revisions: syncedRevisions };
+                    if (syncedCount > 0) {
+                        saveTopicsToDb(updatedTopics); // This updates local state and Firestore
+                        showToast(`Synced ${syncedCount} pending items to Calendar`, 'success');
+                    } else {
+                        console.log("No pending topics needed syncing.");
                     }
-                    return topic;
-                }));
-
-                if (dataChanged) {
-                    saveTopicsToDb(updatedTopics);
-                    showToast("Synced pending topics to Calendar", 'success');
-                } else {
-                    console.log("No pending topics needed syncing.");
+                } catch (err) {
+                    console.error("Batch Sync Error:", err);
+                    showToast("Failed to sync some items", 'error');
                 }
             }
         };
@@ -567,21 +608,32 @@ const AppContent = () => {
     };
 
     const handleDeleteTopic = async (id: string) => {
+        // 1. Optimistic UI Update
         const topicToDelete = topics.find(t => t.id === id);
-        // Check preference flag instead of active token (lazy init)
-        if (topicToDelete && settings.googleCalendarConnected) {
-            // Delete associated calendar events
-            for (const rev of topicToDelete.revisions) {
-                if (rev.googleEventId) {
-                    await CalendarService.ensureToken();
-                    await CalendarService.deleteEventFromCalendar(rev.googleEventId);
-                }
-            }
-        }
-
         const newTopics = topics.filter(t => t.id !== id);
         saveTopicsToDb(newTopics);
-        showToast("Topic deleted", 'success');
+        showToast("Topic deleted locally. Cleaning up calendar...", 'info');
+
+        // 2. Background Calendar Cleanup
+        if (topicToDelete && settings.googleCalendarConnected) {
+            const eventIds = topicToDelete.revisions
+                .map(r => r.googleEventId)
+                .filter(eid => !!eid) as string[];
+
+            if (eventIds.length > 0) {
+                // Execute in background
+                CalendarService.ensureToken().then(async (hasToken) => {
+                    if (hasToken) {
+                        console.log(`[Background Delete] Removing ${eventIds.length} events for ${topicToDelete.title}`);
+                        await Promise.all(eventIds.map(eid =>
+                            CalendarService.deleteEventFromCalendar(eid!)
+                                .catch(e => console.error(e))
+                        ));
+                        console.log(`[Background Delete] Completed cleanup for ${topicToDelete.title}`);
+                    }
+                }).catch(err => console.error("Background deletion error:", err));
+            }
+        }
     };
 
     const handleDuplicateTopic = (topic: Topic) => {
@@ -637,7 +689,7 @@ const AppContent = () => {
 
 
 
-    if (loading) {
+    if (authLoading || (currentUser && isDataLoading)) {
         return (
             <div className="min-h-screen bg-background flex">
                 {/* Skeleton Sidebar - Hidden on mobile, visible on md */}
@@ -711,6 +763,16 @@ const AppContent = () => {
 
                                 {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+
+                                {showReconnectionPopup && (
+                                    <GoogleReconnectionPopup
+                                        onClose={() => {
+                                            setShowReconnectionPopup(false);
+                                            // Mark as ignored for this session so it doesn't pop up on every route change (though this effect runs once on mount)
+                                            sessionStorage.setItem('google_disconnect_ignored', 'true');
+                                        }}
+                                    />
+                                )}
                                 <AddTopicModal
                                     isOpen={isTopicModalOpen}
                                     onClose={() => setIsTopicModalOpen(false)}

@@ -1,7 +1,7 @@
 import { Topic, AppSettings } from '../types';
-import { messaging, db } from '../firebase';
+import { messaging } from '../firebase';
+import { supabase } from './supabase';
 import { getToken, onMessage, Unsubscribe, MessagePayload } from 'firebase/messaging';
-import { doc, setDoc, arrayUnion } from 'firebase/firestore';
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
     if (!('Notification' in window)) {
@@ -23,12 +23,10 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 
 export const sendNotification = async (title: string, body: string): Promise<void> => {
     if (Notification.permission !== 'granted') {
-        // Try requesting again?
         return;
     }
 
     try {
-        // Try to use Service Worker for better mobile support
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             const registration = await navigator.serviceWorker.ready;
             await registration.showNotification(title, {
@@ -42,7 +40,6 @@ export const sendNotification = async (title: string, body: string): Promise<voi
                 }
             });
         } else {
-            // Fallback to standard Notification API
             new Notification(title, {
                 body: body,
                 icon: '/icon-192x192.png',
@@ -71,15 +68,23 @@ export const initializePushNotifications = async (userId: string): Promise<strin
             });
 
             if (token) {
-                // Save token to Firestore
-                const userRef = doc(db, 'users', userId);
-                await setDoc(userRef, {
-                    fcmTokens: arrayUnion(token),
-                    lastFcmUpdate: new Date().toISOString()
-                }, { merge: true });
+                // Save token to Supabase instead of Firestore
+                const { error } = await supabase
+                    .from('push_subscriptions')
+                    .upsert({
+                        user_id: userId,
+                        fcm_token: token,
+                        device_type: navigator.userAgent, // optional info
+                        last_updated: new Date()
+                    }, { onConflict: 'user_id, fcm_token' }); // Composite key
+
+                if (error) {
+                    console.error("Failed to save FCM token to Supabase:", error);
+                } else {
+                    console.log("FCM Token registered to Supabase:", token);
+                }
 
                 localStorage.setItem('fcmToken', token);
-                console.log("FCM Token registered:", token);
                 return token;
             }
         }
@@ -93,19 +98,21 @@ export const onMessageListener = (callback: (payload: MessagePayload) => void): 
     if (!messaging) return null;
     return onMessage(messaging, (payload) => {
         console.log("Foreground Message received: ", payload);
-        // Show local notification if app is in foreground but user needs attention
-        if (payload.notification) {
-            sendNotification(payload.notification.title || "New Message", payload.notification.body || "");
-        } else if (payload.data && payload.data.title && payload.data.body) {
-            sendNotification(payload.data.title, payload.data.body);
+
+        const title = payload.notification?.title || payload.data?.title || "New Message";
+        const body = payload.notification?.body || payload.data?.body || "";
+
+        // Only show if we have meaningful content
+        if (title !== "New Message" || body !== "") {
+            sendNotification(title, body);
         }
+
         callback(payload);
     });
 };
 
 // --- Local Check Logic ---
-
-// Deprecated: Logic moved to Firebase Cloud Functions for background reliability.
+// Removed as currently handled by Cloud Functions / Edge Functions
 export const checkAndSendDueNotifications = (_topics: Topic[], _settings: AppSettings) => {
     // No-op
 };

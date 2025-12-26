@@ -23,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sensitive/Temp
+firebase-secret-minified.json
+error.txt
+supabase/functions/**/.env

@@ -12,21 +12,24 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
+// Handle background messages
+messaging.setBackgroundMessageHandler(function (payload) {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
 
-    // Prefer data payload for manual handling
-    const notificationTitle = payload.data?.title || payload.notification?.title || 'Revision Reminder';
-    const notificationBody = payload.data?.body || payload.notification?.body || 'You have topics due for revision.';
+    // Parse payload
+    const data = payload.data || {};
+    const notificationTitle = data.title || payload.notification?.title || 'Revision Reminder';
+    const notificationBody = data.body || payload.notification?.body || 'You have topics due for revision.';
 
     const notificationOptions = {
         body: notificationBody,
-        icon: '/icon-192x192.png', // Ensure this icon exists
-        data: payload.data,
-        tag: 'revision-reminder' // Replace existing notifications with same tag
+        icon: '/icon-192x192.png',
+        data: data, // pass entire data object
+        tag: 'revision-reminder',
+        renotify: true
     };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
+    return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 self.addEventListener('notificationclick', function (event) {

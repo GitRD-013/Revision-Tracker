@@ -58,6 +58,7 @@ export interface AppSettings {
   defaultIntervals: number[];
   autoReschedule: boolean;
   googleCalendarConnected: boolean;
+  googleAccountEmail?: string;
   defaultCalendarTime?: string; // Last used time for new topics
   notifications: NotificationSettings;
   topicViewMode: 'grid' | 'table';
