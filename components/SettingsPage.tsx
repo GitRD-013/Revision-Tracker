@@ -225,6 +225,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, topics: currentTo
 
         const reader = new FileReader();
         reader.onload = async (event) => {
+            console.log("File read completed. Parsing...");
+            showToast("Reading import file...", 'info');
+
             const content = event.target?.result as string;
             setImportSuccess(null);
             setImportError(null);

@@ -384,12 +384,39 @@ const AppContent = () => {
                     // [NEW] Fetch Initial Data from Supabase
                     try {
                         const initialData = await fetchUserData(currentUser.uid);
-                        if (initialData) {
+
+                        // SAFETY CHECK: If Supabase is empty but we have local data, DO NOT OVERWRITE with empty.
+                        // Instead, treat it as a migration scenario.
+                        const localTopicsStr = localStorage.getItem('revision_topics');
+                        const localTopics = localTopicsStr ? JSON.parse(localTopicsStr) : [];
+
+                        if (initialData && initialData.topics.length > 0) {
+                            // Supabase has data, use it (Source of Truth)
                             setTopics(initialData.topics);
                             setSettings(initialData.settings);
+                        } else if (localTopics.length > 0) {
+                            // Supabase is empty, but Local has data -> Force Sync/Migration
+                            console.log("Supabase empty, found local data. Syncing up...");
+                            setTopics(localTopics); // Keep UI populated
+                            await saveUserTopics(currentUser.uid, localTopics);
+
+                            // Also sync settings if available
+                            const localSettingsStr = localStorage.getItem('revision_settings');
+                            if (localSettingsStr) {
+                                const localStg = JSON.parse(localSettingsStr);
+                                setSettings(localStg);
+                                await saveUserSettings(currentUser.uid, localStg);
+                            }
+                        } else {
+                            // Both empty
+                            setTopics([]);
+                            setSettings(initialData?.settings || DEFAULT_SETTINGS);
                         }
                     } catch (fetchErr) {
                         console.error("Failed to fetch initial data", fetchErr);
+                        // Fallback to local if fetch fails
+                        const localTopicsStr = localStorage.getItem('revision_topics');
+                        if (localTopicsStr) setTopics(JSON.parse(localTopicsStr));
                     } finally {
                         setIsDataLoading(false); // Stop loading after initial fetch attempt
                     }
