@@ -63,6 +63,9 @@ export const fetchUserData = async (userId: string) => {
 };
 
 export const saveUserTopics = async (userId: string, topics: Topic[]) => {
+  // Always update local storage first (Optimistic / Cache consistency)
+  saveLocalTopics(topics);
+
   try {
     // Upsert topics
     const { error } = await supabase
@@ -73,12 +76,14 @@ export const saveUserTopics = async (userId: string, topics: Topic[]) => {
     if (error) throw error;
   } catch (error) {
     console.error("Error saving topics to Supabase:", error);
-    saveLocalTopics(topics);
-    throw new Error("Failed to save topics. Saved locally instead.");
+    throw new Error("Failed to save topics to cloud. Saved locally.");
   }
 };
 
 export const saveUserSettings = async (userId: string, settings: AppSettings) => {
+  // Always update local storage first
+  saveLocalSettings(settings);
+
   try {
     const { error } = await supabase
       .from('user_data')
@@ -87,8 +92,7 @@ export const saveUserSettings = async (userId: string, settings: AppSettings) =>
     if (error) throw error;
   } catch (error) {
     console.error("Error saving settings to Supabase:", error);
-    saveLocalSettings(settings);
-    throw new Error("Failed to save settings. Saved locally instead.");
+    throw new Error("Failed to save settings to cloud. Saved locally.");
   }
 };
 

@@ -398,7 +398,9 @@ export const batchSyncRevisions = async (topics: any[]): Promise<{ updatedTopics
   if (allDates.length === 0) return { updatedTopics, syncedCount: 0 };
 
   const minDate = allDates.sort()[0];
-  const existingEvents = await listEvents(new Date(minDate).toISOString(), 2500); // Fetch plenty
+  const safeMinDate = new Date(minDate);
+  safeMinDate.setDate(safeMinDate.getDate() - 1); // Pad by 1 day to handle timezone shifts safely
+  const existingEvents = await listEvents(safeMinDate.toISOString(), 2500); // Fetch plenty
   console.log(`[CalendarService] Fetched ${existingEvents.length} existing events for matching.`);
 
   for (const topic of updatedTopics) {
